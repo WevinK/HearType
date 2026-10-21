@@ -59,7 +59,7 @@ export default function ResultsScreen({ clips, onRestart, onNew }: Props) {
         </div>
         <div className="stat">
           <span>{score.wrongTries}</span>
-          <label>Wrong tries</label>
+          <label>Wrong keys</label>
         </div>
       </div>
 
@@ -98,7 +98,9 @@ export default function ResultsScreen({ clips, onRestart, onNew }: Props) {
               <strong className="d-word">{clip.text || '—'}</strong>
               <span className="d-answer">{answerText}</span>
               <span className={`pill ${pill}`}>{pillText}</span>
-              <span className="d-tries">{clip.attempts} wrong</span>
+              <span className="d-tries">
+                {clip.attempts} wrong {clip.attempts === 1 ? 'key' : 'keys'}
+              </span>
             </li>
           );
         })}

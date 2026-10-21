@@ -11,8 +11,8 @@ Everything runs on your machine. No audio or video is sent to a cloud service.
 - **Upload or link** — choose a video/audio file (up to 500 MB), or paste a public YouTube link. YouTube videos are fetched with `yt-dlp` (the same downloader the Vibe desktop app uses) and cached in `.vibe/media/` for playback.
 - **Get the text** — uploaded files are transcribed by the local `vibe-server` and Whisper. YouTube links use YouTube's English captions when available; if captions are missing, Vibe transcribes the downloaded media. Caption cues are grouped into sentence-sized clips.
 - **Review** — fix any transcription mistakes, remove bad lines, then start.
-- **Practice** — the media is served locally with HTTP range requests and plays one sentence at a time by seeking to its timestamps. Type what you hear; punctuation and capitalisation are ignored. A correct answer moves on after 700 ms.
-- **Review the session** — accuracy, first-try count, missed sentences, wrong tries, and a sentence-by-sentence breakdown.
+- **Practice** — the media is served locally with HTTP range requests and plays one sentence at a time by seeking to its timestamps. A random half of the sentence's words are shown in full; the other words appear as underlined character slots. Every key is checked: a wrong key buzzes and its slot turns red; spaces and punctuation fill themselves; completed words turn green when clean, yellow when corrected, or red when a wrong letter remains. A correct sentence moves on after 700 ms.
+- **Review the session** — accuracy, first-try count, missed sentences, wrong keys, and a sentence-by-sentence breakdown.
 
 ## Requirements
 
@@ -50,7 +50,7 @@ This app is designed to run locally because it starts a native Vibe process. It 
 | `npm run dev` | Start Next.js on port 3100 |
 | `npm run build` | Production build |
 | `npm run start` | Start the production server on port 3100 |
-| `npm test` | Run sentence, scoring, YouTube URL, caption, and legacy tests |
+| `npm test` | Run sentence, scoring, YouTube URL, caption, typing, and legacy tests |
 | `npm run typecheck` | Run TypeScript with no emit |
 | `npm run setup:vibe` | Download vibe-server, ffmpeg, and the model into `.vibe/` |
 
@@ -83,10 +83,11 @@ lib/vibe.ts          Server-only Vibe process management and transcription
 lib/youtube.ts       yt-dlp download, validation, caching, and cleanup
 lib/youtube-captions.ts YouTube caption fetch and grouping boundary
 lib/youtube-url.ts   YouTube URL allowlist/normalisation
-lib/sentences.ts     Whisper segment → sentence grouping
+lib/sentences.ts     Whisper segment → sentence grouping (10s / 160 chars)
+lib/typing.ts        Whole-word clue layout and per-key word states
 lib/listening.ts     Matching, scoring, and time formatting
 scripts/setup-vibe.mjs
-test/                Sentence, scoring, YouTube URL, caption, and legacy parser tests
+test/                Sentence, scoring, YouTube URL, caption, typing, and legacy parser tests
 legacy/              Previous zero-dependency single-file version (reference only)
 ```
 
@@ -99,4 +100,4 @@ The legacy app is kept for reference and has its own sample pack in `legacy/Vide
 - YouTube videos are limited to 60 minutes and 500 MB, and live streams/playlists are rejected. English captions are fetched from YouTube when available; if they are missing, the downloaded media is transcribed with Vibe. Downloaded files are cached in `.vibe/media/` for 24 hours.
 - Only download or transcribe content you have the rights to use.
 - Sessions and uploaded files are not persisted. A refresh starts clean.
-- Whisper segments are merged into editable sentence clips; timestamps come from Whisper.
+- Whisper segments and caption cues are grouped into editable sentence clips of at most 10 seconds / 160 characters; timestamps come from the source.

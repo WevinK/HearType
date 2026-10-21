@@ -42,13 +42,14 @@ test('drops non-speech tags and invalid segments', () => {
   assert.deepEqual(sentences, [{ start: 4, end: 5.5, text: 'Hello there.' }]);
 });
 
-test('keeps long continuations separate after twenty seconds', () => {
+test('keeps a continuation separate when it would pass ten seconds', () => {
   const sentences = buildSentences([
-    { start: 0, end: 21, text: 'This keeps going and going without a stop' },
-    { start: 21, end: 22, text: ' and then stops.' },
+    { start: 0, end: 9, text: 'This keeps going without a stop' },
+    { start: 9, end: 12, text: ' and then it stops.' },
   ]);
 
   assert.equal(sentences.length, 2);
-  assert.equal(sentences[0].text, 'This keeps going and going without a stop');
-  assert.equal(sentences[1].text, 'and then stops.');
+  assert.equal(sentences[0].text, 'This keeps going without a stop');
+  assert.equal(sentences[1].start, 9);
+  assert.equal(sentences[1].text, 'and then it stops.');
 });

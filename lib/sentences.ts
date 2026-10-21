@@ -14,10 +14,10 @@ type RawCaptionCue = {
 
 const SPEAKER_PREFIX = /^[-–—]\s+/;
 const ENDS_SENTENCE = /[.!?]["'”’)\]]*$/;
-const MAX_MERGED_SECONDS = 20;
-const MAX_MERGED_CHARS = 240;
-const MAX_CAPTION_SECONDS = 15;
-const MAX_CAPTION_CHARS = 240;
+const MAX_MERGED_SECONDS = 10;
+const MAX_MERGED_CHARS = 160;
+const MAX_CAPTION_SECONDS = 10;
+const MAX_CAPTION_CHARS = 160;
 const CAPTION_GAP_SECONDS = 1.2;
 
 function cleanText(text: string): string {

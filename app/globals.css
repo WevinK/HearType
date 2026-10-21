@@ -410,19 +410,53 @@
     font-size: 0.7rem; font-weight: 650; letter-spacing: 0.18em;
     text-transform: uppercase; color: var(--muted);
   }
-  #answerInput {
-    width: 100%; padding: 4px 2px 10px;
-    color: var(--text); caret-color: var(--accent);
-    font-family: var(--mono); font-size: clamp(1.25rem, 3vw, 1.65rem);
-    background: transparent; border: 0; border-bottom: 2px solid rgba(255, 255, 255, 0.13);
-    border-radius: 0;
-    transition: border-color 0.2s, color 0.2s, opacity 0.2s;
+  .typing-shell {
+    position: relative;
+    padding: 4px 2px 10px;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.13);
+    transition: border-color 0.2s;
   }
-  #answerInput:focus { outline: none; border-color: var(--accent); }
-  #answerInput:disabled { opacity: 0.45; }
-  #answerInput.correct { color: var(--good); border-color: var(--good); }
-  #answerInput.wrong { border-color: var(--bad); }
-  #answerInput.shake { animation: shake 0.4s ease; }
+  .typing-shell:focus-within { border-color: var(--accent); }
+  .typing-shell.shake { animation: shake 0.4s ease; }
+  .typing-display {
+    display: flex; flex-wrap: wrap; align-items: flex-end;
+    gap: 0.12em 0.55em;
+    min-height: 2.1em;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: clamp(1.25rem, 3vw, 1.65rem);
+    line-height: 1.45;
+    user-select: none;
+  }
+  .typing-word {
+    --word-color: var(--text);
+    display: inline-flex; align-items: flex-end; white-space: nowrap;
+    color: var(--word-color);
+    transition: color 0.16s;
+  }
+  .typing-word.correct { --word-color: var(--good); }
+  .typing-word.fixed { --word-color: var(--warn); }
+  .typing-word.wrong { --word-color: var(--bad); }
+  .typing-word.active .typing-char.blank { border-bottom-color: var(--accent); }
+  .typing-char {
+    display: inline-block; min-width: 0.62em; text-align: center;
+    transition: color 0.12s, border-color 0.12s;
+  }
+  .typing-char.blank {
+    min-width: 1.05ch; color: transparent;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.18);
+  }
+  .typing-char.typed { color: var(--word-color); }
+  .typing-char.wrong { color: var(--bad); opacity: 1; }
+  .typing-capture {
+    position: absolute; inset: 0; z-index: 2;
+    width: 100%; height: 100%; margin: 0; padding: 0;
+    opacity: 0; border: 0; border-radius: 0;
+    background: transparent; color: transparent;
+    font-size: 16px; cursor: text;
+  }
+  .typing-capture:disabled { cursor: default; }
+  .typing-capture:focus { outline: none; }
   @keyframes shake {
     10%, 90% { transform: translateX(-1px); }
     20%, 80% { transform: translateX(2px); }

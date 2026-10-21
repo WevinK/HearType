@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
-import { normalize } from '@/lib/listening';
+import { buildTypingLayout, evaluateTyping, seededRandom } from '@/lib/typing';
 import type { Clip, MediaKind, Sentence } from '@/lib/types';
 
 type Props = {
@@ -17,6 +17,9 @@ function createClips(sentences: Sentence[]): Clip[] {
     ...sentence,
     attempts: 0,
     answer: '',
+    typed: '',
+    mistakes: [],
+    revealSeed: Math.floor(Math.random() * 0xffffffff),
     lastWrong: '',
     result: 'pending' as const,
     skippedOnce: false,
@@ -38,11 +41,13 @@ export default function PracticeScreen({
   const indexRef = useRef(0);
   const clipRef = useRef<Clip | null>(clips[0] ?? null);
 
-  const [answer, setAnswer] = useState('');
-  const answerRef = useRef('');
+  const [typed, setTyped] = useState('');
+  const typedRef = useRef('');
+  const [mistakes, setMistakes] = useState<number[]>([]);
+  const mistakesRef = useRef<number[]>([]);
   const [readOnly, setReadOnly] = useState(false);
   const [feedback, setFeedback] = useState<Feedback>({ text: '', kind: '' });
-  const [attemptHint, setAttemptHint] = useState('Press Enter to check');
+  const [attemptHint, setAttemptHint] = useState('Type the missing letters');
   const [shake, setShake] = useState(false);
 
   const [counting, setCounting] = useState(true);
@@ -53,9 +58,24 @@ export default function PracticeScreen({
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const audioRef = useRef<AudioContext | null>(null);
   const advanceRef = useRef<number | null>(null);
-  const checkRef = useRef<number | null>(null);
   const shakeRef = useRef<number | null>(null);
+
+  const current = clips[index];
+  const layout = useMemo(
+    () =>
+      buildTypingLayout(
+        current?.text ?? '',
+        0.5,
+        seededRandom(current?.revealSeed ?? 0)
+      ),
+    [current?.text, current?.revealSeed]
+  );
+  const evaluation = useMemo(
+    () => evaluateTyping(layout, typed, mistakes),
+    [layout, typed, mistakes]
+  );
 
   useEffect(() => {
     clipsRef.current = clips;
@@ -90,10 +110,6 @@ export default function PracticeScreen({
         window.clearTimeout(advanceRef.current);
         advanceRef.current = null;
       }
-      if (checkRef.current !== null) {
-        window.clearTimeout(checkRef.current);
-        checkRef.current = null;
-      }
 
       const nextClips = all.map((clip, i) => (i === nextIndex ? { ...clip, reached: true } : clip));
       const currentClip = nextClips[nextIndex];
@@ -103,16 +119,19 @@ export default function PracticeScreen({
       setClips(nextClips);
       setIndex(nextIndex);
 
-      const restored = currentClip.result === 'correct' ? currentClip.text : currentClip.answer;
-      setAnswer(restored);
-      answerRef.current = restored;
+      setTyped(currentClip.typed);
+      typedRef.current = currentClip.typed;
+      setMistakes(currentClip.mistakes);
+      mistakesRef.current = currentClip.mistakes;
       setReadOnly(currentClip.result === 'correct');
       setShake(false);
       setShowTap(false);
       setAttemptHint(
-        currentClip.attempts
-          ? `${currentClip.attempts} wrong ${currentClip.attempts === 1 ? 'try' : 'tries'}`
-          : 'Press Enter to check'
+        currentClip.result === 'correct'
+          ? 'Correct — press Enter for the next sentence.'
+          : currentClip.attempts
+            ? `${currentClip.attempts} wrong ${currentClip.attempts === 1 ? 'key' : 'keys'}`
+            : 'Type the missing letters'
       );
       setFeedback(
         currentClip.result === 'correct'
@@ -131,10 +150,6 @@ export default function PracticeScreen({
       window.clearTimeout(advanceRef.current);
       advanceRef.current = null;
     }
-    if (checkRef.current !== null) {
-      window.clearTimeout(checkRef.current);
-      checkRef.current = null;
-    }
     videoRef.current?.pause();
     onFinish(clipsRef.current);
   }, [onFinish]);
@@ -149,10 +164,6 @@ export default function PracticeScreen({
     const clip = clipsRef.current[currentIndex];
     if (!clip || clip.result === 'correct') return;
 
-    if (checkRef.current !== null) {
-      window.clearTimeout(checkRef.current);
-      checkRef.current = null;
-    }
     updateClips((all) =>
       all.map((item, i) =>
         i === currentIndex ? { ...item, result: 'correct' as const, answer: item.text } : item
@@ -164,37 +175,119 @@ export default function PracticeScreen({
     advanceRef.current = window.setTimeout(advance, 700);
   }, [advance, updateClips]);
 
+  const buzz = useCallback(() => {
+    try {
+      const AudioContextClass = window.AudioContext;
+      if (!AudioContextClass) return;
+      const context = audioRef.current ?? new AudioContextClass();
+      audioRef.current = context;
+      if (context.state === 'suspended') void context.resume();
+
+      const now = context.currentTime;
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = 'square';
+      oscillator.frequency.setValueAtTime(110, now);
+      gain.gain.setValueAtTime(0.045, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start(now);
+      oscillator.stop(now + 0.1);
+    } catch {
+      // Sound is optional; the red key is the primary feedback.
+    }
+  }, []);
+
   const pulseWrong = useCallback(() => {
+    buzz();
     setShake(false);
     window.requestAnimationFrame(() => setShake(true));
     if (shakeRef.current !== null) window.clearTimeout(shakeRef.current);
     shakeRef.current = window.setTimeout(() => setShake(false), 450);
-  }, []);
+  }, [buzz]);
 
-  function onAnswerChange(event: ChangeEvent<HTMLInputElement>) {
-    const value = event.target.value;
-    setAnswer(value);
-    answerRef.current = value;
-
+  function onTypingChange(event: ChangeEvent<HTMLInputElement>) {
     if (readOnly || counting) return;
 
-    const currentIndex = indexRef.current;
-    updateClips((all) =>
-      all.map((clip, i) => (i === currentIndex ? { ...clip, answer: value } : clip))
-    );
-    if (checkRef.current !== null) {
-      window.clearTimeout(checkRef.current);
-      checkRef.current = null;
-    }
-    setShake(false);
-    if (!value.trim()) return;
+    const previous = typedRef.current;
+    const next = event.target.value
+      .replace(/[^\p{L}\p{N}]/gu, '')
+      .slice(0, layout.hiddenCount);
 
-    checkRef.current = window.setTimeout(() => {
-      if (indexRef.current !== currentIndex) return;
-      const clip = clipsRef.current[currentIndex];
-      if (!clip || clip.result === 'correct') return;
-      if (normalize(value) === normalize(clip.text)) markCorrect();
-    }, 450);
+    if (next === previous) {
+      event.target.value = next;
+      return;
+    }
+
+    const currentIndex = indexRef.current;
+    const clip = clipsRef.current[currentIndex];
+    if (!clip) return;
+
+    let nextMistakes = mistakesRef.current;
+    let wrongAdded = 0;
+
+    if (next.length > previous.length && next.startsWith(previous)) {
+      const added: number[] = [];
+      for (let slot = previous.length; slot < next.length; slot++) {
+        if (next[slot].toLowerCase() !== layout.hiddenChars[slot].toLowerCase()) {
+          added.push(slot);
+        }
+      }
+      if (added.length) {
+        const known = new Set(nextMistakes);
+        for (const slot of added) known.add(slot);
+        nextMistakes = [...known];
+        wrongAdded = added.length;
+      }
+    } else {
+      const known = new Set(nextMistakes);
+      for (let slot = 0; slot < next.length; slot++) {
+        if (next[slot].toLowerCase() !== layout.hiddenChars[slot].toLowerCase()) {
+          known.add(slot);
+        }
+      }
+      nextMistakes = [...known];
+    }
+
+    const nextEvaluation = evaluateTyping(layout, next, nextMistakes);
+    const attempts = clip.attempts + wrongAdded;
+
+    typedRef.current = next;
+    setTyped(next);
+    mistakesRef.current = nextMistakes;
+    setMistakes(nextMistakes);
+    updateClips((all) =>
+      all.map((item, i) =>
+        i === currentIndex
+          ? {
+              ...item,
+              typed: next,
+              mistakes: nextMistakes,
+              attempts,
+              answer: next ? nextEvaluation.answer : '',
+              lastWrong: wrongAdded ? nextEvaluation.answer : item.lastWrong,
+            }
+          : item
+      )
+    );
+
+    if (wrongAdded) {
+      setFeedback({ text: 'Not quite — check the red key.', kind: 'bad' });
+      setAttemptHint(`${attempts} wrong ${attempts === 1 ? 'key' : 'keys'}`);
+      pulseWrong();
+    } else {
+      setFeedback({ text: '', kind: '' });
+      setAttemptHint(
+        nextEvaluation.complete && !nextEvaluation.correct
+          ? 'Fix the red letters or press Next'
+          : attempts
+            ? `${attempts} wrong ${attempts === 1 ? 'key' : 'keys'}`
+            : 'Type the missing letters'
+      );
+    }
+
+    if (nextEvaluation.correct) markCorrect();
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -202,13 +295,7 @@ export default function PracticeScreen({
     event.preventDefault();
     if (counting) return;
 
-    if (checkRef.current !== null) {
-      window.clearTimeout(checkRef.current);
-      checkRef.current = null;
-    }
-
-    const currentIndex = indexRef.current;
-    const clip = clipsRef.current[currentIndex];
+    const clip = clipsRef.current[indexRef.current];
     if (!clip) return;
 
     if (clip.result === 'correct') {
@@ -216,30 +303,23 @@ export default function PracticeScreen({
       return;
     }
 
-    const value = answerRef.current.trim();
-    if (!value) {
-      setFeedback({ text: 'Type what you hear first.', kind: 'bad' });
-      pulseWrong();
+    if (!typedRef.current) {
+      setFeedback({ text: 'Type the missing letters first.', kind: 'bad' });
       return;
     }
 
-    if (normalize(value) === normalize(clip.text)) {
+    const result = evaluateTyping(layout, typedRef.current, mistakesRef.current);
+    if (result.correct) {
       markCorrect();
       return;
     }
 
-    const attempts = clip.attempts + 1;
-    updateClips((all) =>
-      all.map((item, i) =>
-        i === currentIndex ? { ...item, attempts, answer: value, lastWrong: value } : item
-      )
-    );
     setFeedback({
-      text: `Not quite — wrong try ${attempts}. Listen again.`,
+      text: result.complete
+        ? 'Not quite — fix the red letters or press Next.'
+        : 'Finish the missing letters.',
       kind: 'bad',
     });
-    setAttemptHint(`${attempts} wrong ${attempts === 1 ? 'try' : 'tries'}`);
-    pulseWrong();
   }
 
   function goNext() {
@@ -248,18 +328,15 @@ export default function PracticeScreen({
       window.clearTimeout(advanceRef.current);
       advanceRef.current = null;
     }
-    if (checkRef.current !== null) {
-      window.clearTimeout(checkRef.current);
-      checkRef.current = null;
-    }
 
     const currentIndex = indexRef.current;
     const clip = clipsRef.current[currentIndex];
     if (!clip) return;
 
     if (clip.result === 'pending') {
-      const value = answerRef.current;
-      if (value.trim() && normalize(value) === normalize(clip.text)) {
+      const value = typedRef.current;
+      const result = evaluateTyping(layout, value, mistakesRef.current);
+      if (result.correct) {
         markCorrect();
         advance();
         return;
@@ -271,7 +348,7 @@ export default function PracticeScreen({
                 ...item,
                 result: 'skipped' as const,
                 skippedOnce: true,
-                answer: value.trim(),
+                answer: value ? result.answer : '',
               }
             : item
         )
@@ -283,17 +360,9 @@ export default function PracticeScreen({
   function endSession() {
     const currentIndex = indexRef.current;
     const clip = clipsRef.current[currentIndex];
-    if (
-      clip &&
-      clip.result === 'pending' &&
-      answerRef.current.trim() &&
-      normalize(answerRef.current) === normalize(clip.text)
-    ) {
-      updateClips((all) =>
-        all.map((item, i) =>
-          i === currentIndex ? { ...item, result: 'correct' as const, answer: item.text } : item
-        )
-      );
+    if (clip && clip.result === 'pending' && typedRef.current) {
+      const result = evaluateTyping(layout, typedRef.current, mistakesRef.current);
+      if (result.correct) markCorrect();
     }
     finish();
   }
@@ -416,19 +485,15 @@ export default function PracticeScreen({
   useEffect(() => {
     return () => {
       if (advanceRef.current !== null) window.clearTimeout(advanceRef.current);
-      if (checkRef.current !== null) window.clearTimeout(checkRef.current);
       if (shakeRef.current !== null) window.clearTimeout(shakeRef.current);
+      if (audioRef.current) void audioRef.current.close().catch(() => undefined);
     };
   }, []);
 
-  const current = clips[index];
   if (!current) return null;
 
   const liveScore = clips.filter((clip) => clip.result === 'correct').length;
   const progress = (index + 1) / clips.length * 100;
-  const inputClass = [readOnly ? 'correct' : '', shake ? 'shake wrong' : '']
-    .filter(Boolean)
-    .join(' ');
 
   return (
     <section className="screen play">
@@ -584,25 +649,46 @@ export default function PracticeScreen({
       </div>
 
       <div className="answer">
-        <label htmlFor="answerInput">Type what you heard</label>
-        <input
-          id="answerInput"
-          ref={inputRef}
-          className={inputClass}
-          value={answer}
-          onChange={onAnswerChange}
-          onKeyDown={onKeyDown}
-          readOnly={readOnly}
-          disabled={counting}
-          placeholder="…"
-          autoComplete="off"
-          autoCapitalize="off"
-          autoCorrect="off"
-          spellCheck={false}
-          enterKeyHint="done"
-          aria-invalid={feedback.kind === 'bad'}
-        />
-        <p className={`feedback${feedback.kind ? ` ${feedback.kind}` : ''}`} aria-live="polite">
+        <label htmlFor="answerInput">Type the missing letters</label>
+        <div className={`typing-shell${shake ? ' shake' : ''}`}>
+          <div className="typing-display" aria-hidden="true">
+            {evaluation.words.map((word, wordIndex) => (
+              <span
+                key={wordIndex}
+                className={`typing-word ${word.state}${word.active ? ' active' : ''}`}
+              >
+                {word.chars.map((char, charIndex) => (
+                  <span key={charIndex} className={`typing-char ${char.state}`}>
+                    {char.state === 'blank' ? ' ' : (char.typedChar ?? char.char)}
+                  </span>
+                ))}
+              </span>
+            ))}
+          </div>
+          <input
+            id="answerInput"
+            ref={inputRef}
+            className="typing-capture"
+            value={typed}
+            onChange={onTypingChange}
+            onKeyDown={onKeyDown}
+            readOnly={readOnly}
+            disabled={counting}
+            autoComplete="off"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            enterKeyHint="done"
+            inputMode="text"
+            aria-invalid={feedback.kind === 'bad'}
+            aria-describedby="answerFeedback"
+          />
+        </div>
+        <p
+          id="answerFeedback"
+          className={`feedback${feedback.kind ? ` ${feedback.kind}` : ''}`}
+          aria-live="polite"
+        >
           {feedback.text}
         </p>
         <div className="answer-meta">

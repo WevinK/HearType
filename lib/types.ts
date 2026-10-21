@@ -11,6 +11,9 @@ export type ClipResult = 'pending' | 'correct' | 'skipped';
 export type Clip = Sentence & {
   attempts: number;
   answer: string;
+  typed: string;
+  mistakes: number[];
+  revealSeed: number;
   lastWrong: string;
   result: ClipResult;
   skippedOnce: boolean;
