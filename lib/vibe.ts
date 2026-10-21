@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, openAsBlob } from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
-import { buildSentences } from './sentences';
+import { buildSentences } from './sentences.ts';
 import type { TranscribeResponse } from './types';
 
 const VIBE_DIR = path.join(process.cwd(), '.vibe');
@@ -214,6 +214,8 @@ async function transcribeBlob(blob: Blob, filename: string): Promise<TranscribeR
   form.append('file', blob, filename);
   form.append('response_format', 'verbose_json');
   form.append('language', LANGUAGE);
+  form.append('word_timestamps', 'true');
+  form.append('max_segment_len', '1');
 
   let response: Response;
   try {
