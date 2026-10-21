@@ -60,14 +60,15 @@ async function startVibe(): Promise<Server> {
     return { baseUrl, child: null };
   }
 
-  if (!existsSync(SERVER_PATH)) {
+  if (!existsSync(/* turbopackIgnore: true */ SERVER_PATH)) {
     throw new VibeError('Vibe is not installed yet. Run "npm run setup:vibe" once, then try again.');
   }
-  if (!existsSync(MODEL_PATH)) {
+  if (!existsSync(/* turbopackIgnore: true */ MODEL_PATH)) {
     throw new VibeError('The Whisper model is missing. Run "npm run setup:vibe" once, then try again.');
   }
 
   const child = spawn(
+    /* turbopackIgnore: true */
     SERVER_PATH,
     ['serve', '--host', '127.0.0.1', '--port', '0', '--exit-with-parent', 'true'],
     {
@@ -171,7 +172,7 @@ async function ensureModel(baseUrl: string): Promise<void> {
   }
   if (ready.ok) return;
 
-  if (!existsSync(MODEL_PATH)) {
+  if (!existsSync(/* turbopackIgnore: true */ MODEL_PATH)) {
     throw new VibeError('The Whisper model is missing. Run "npm run setup:vibe" once, then try again.');
   }
 
