@@ -66,7 +66,6 @@ export default function PracticeScreen({
   const videoRef = useRef<HTMLVideoElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<AudioContext | null>(null);
-  const advanceRef = useRef<number | null>(null);
   const shakeRef = useRef<number | null>(null);
 
   const current = clips[index];
@@ -113,11 +112,6 @@ export default function PracticeScreen({
       const all = clipsRef.current;
       if (nextIndex < 0 || nextIndex >= all.length) return;
 
-      if (advanceRef.current !== null) {
-        window.clearTimeout(advanceRef.current);
-        advanceRef.current = null;
-      }
-
       const nextClips = all.map((clip, i) => (i === nextIndex ? { ...clip, reached: true } : clip));
       const currentClip = nextClips[nextIndex];
       clipsRef.current = nextClips;
@@ -135,14 +129,14 @@ export default function PracticeScreen({
       setShowTap(false);
       setAttemptHint(
         currentClip.result === 'correct'
-          ? 'Correct — press Enter for the next sentence.'
+          ? 'Correct — press Enter or Continue.'
           : currentClip.attempts
             ? `${currentClip.attempts} wrong ${currentClip.attempts === 1 ? 'key' : 'keys'}`
             : 'Type the missing letters'
       );
       setFeedback(
         currentClip.result === 'correct'
-          ? { text: 'Already solved — press Enter for the next sentence.', kind: 'good' }
+          ? { text: 'Already solved — press Enter or Continue.', kind: 'good' }
           : { text: '', kind: '' }
       );
 
@@ -153,10 +147,6 @@ export default function PracticeScreen({
   );
 
   const finish = useCallback(() => {
-    if (advanceRef.current !== null) {
-      window.clearTimeout(advanceRef.current);
-      advanceRef.current = null;
-    }
     videoRef.current?.pause();
     onFinish(clipsRef.current);
   }, [onFinish]);
@@ -178,9 +168,9 @@ export default function PracticeScreen({
     );
     setReadOnly(true);
     setShake(false);
-    setFeedback({ text: '✓ Correct!', kind: 'good' });
-    advanceRef.current = window.setTimeout(advance, 700);
-  }, [advance, updateClips]);
+    setAttemptHint('Correct — press Enter or Continue.');
+    setFeedback({ text: '✓ Correct! Press Enter or Continue.', kind: 'good' });
+  }, [updateClips]);
 
   const buzz = useCallback(() => {
     try {
@@ -358,10 +348,6 @@ export default function PracticeScreen({
 
   function goNext() {
     if (counting) return;
-    if (advanceRef.current !== null) {
-      window.clearTimeout(advanceRef.current);
-      advanceRef.current = null;
-    }
 
     const currentIndex = indexRef.current;
     const clip = clipsRef.current[currentIndex];
@@ -522,7 +508,6 @@ export default function PracticeScreen({
 
   useEffect(() => {
     return () => {
-      if (advanceRef.current !== null) window.clearTimeout(advanceRef.current);
       if (shakeRef.current !== null) window.clearTimeout(shakeRef.current);
       if (audioRef.current) void audioRef.current.close().catch(() => undefined);
     };
@@ -771,8 +756,13 @@ export default function PracticeScreen({
         </p>
         <div className="answer-meta">
           <span>{attemptHint}</span>
-          <span>Auto-plays next when correct</span>
+          <span>{current.result === 'correct' ? 'Press Enter or Continue' : 'Every key is checked'}</span>
         </div>
+        {current.result === 'correct' && !counting && (
+          <button className="btn btn-primary continue-btn" type="button" onClick={advance}>
+            {index >= clips.length - 1 ? 'See results' : 'Continue'}
+          </button>
+        )}
       </div>
 
       <div className="session-actions">
