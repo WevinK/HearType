@@ -4,32 +4,40 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-ListeningType is a zero-dependency, single-page English listening/typing drill. Users load video clips, audio clips, or zip packs, hear a word/line in each, type it, and a correct answer auto-advances to the next clip. Markup, styles, and logic all live in `index.html`. There is no package manager, build step, or lint. One dependency-free parser test lives in `test/zip.test.mjs`.
+ListeningType is a local-first English listening drill. The user uploads a video or audio file; a local Vibe (whisper.cpp) server transcribes it; the app groups the transcript into sentences; the learner listens to each sentence from the original media and types it. The app is Next.js 16 (App Router), React 19, and TypeScript. The previous zero-dependency single-file version is archived under `legacy/`.
 
-## Run & verify
+## Commands
 
-- Open `index.html` directly in a browser, or serve the folder: `python -m http.server 8000` → http://localhost:8000
-- Chrome or Edge recommended. Folder loading uses a `webkitdirectory` file input; zip packs need `DecompressionStream("deflate-raw")`, available in current Chrome/Edge/Firefox/Safari.
-- A real sample pack lives in `Videos/you_are_a_toy.zip`: 20 MP3 dialogue lines with `.txt` captions. Load it via **Open .zip** and expect 20 audio clips, captions as answers, and Buzz/Woody speaker labels.
-- MP4 (H.264), MP3, and WebM are the safest formats; unsupported codecs trigger a toast.
-- Test: `node --test test/zip.test.mjs`. This needs Node 22+ for `DecompressionStream`; it evaluates the real inline parser against the sample pack. No install step.
-- Manual test: load 2–3 clips or the sample pack, confirm the derived/captioned answers, Start, wait through the 3-count, type an answer and confirm auto-advance, finish, and check the breakdown.
+- `npm install`
+- `npm run setup:vibe` — downloads vibe-server v0.6.10, ffmpeg, and `ggml-base.en.bin` into `.vibe/` (gitignored). Run once.
+- `npm run dev` — http://localhost:3100. Port 3100 avoids another local dev app on 3000.
+- `npm run build` / `npm run start` — production build and server, also on 3100.
+- `npm test` — Node test runner with `--experimental-strip-types`; covers sentence grouping, scoring/matching, and the legacy zip parser.
+- `npm run typecheck`.
+- No linter is configured.
 
-## Architecture
+## How it fits together
 
-- Three screens (`#setupScreen`, `#playScreen`, `#resultScreen`) inside one `<main>`, toggled by `showScreen()`; no router or framework.
-- Loading (`loadFiles()`): direct video/audio files and zip packs can be mixed. Direct media get a target from the filename (`deriveTarget()`: `ice-cream.mp4` → "ice cream"). Zip parsing lives in the `zip packs` section.
-- Zip packs: `extractPack()` reads the central directory, loads `.txt` sidecars, and uses `caption="..."` / `dub_characters=[...]` as the target and speaker. If any media candidate has a caption, only captioned media are loaded (this skips full scene videos, backing tracks, and artwork); otherwise every audio/video entry is loaded with a filename target. Zips over 256 MB, single entries over 256 MB, and unpacked totals over 512 MB are rejected; unreadable clips are skipped and reported. The parser is deliberately minimal: store + deflate methods, no Zip64, encryption, or multi-part zips.
-- Flow: selection → `startSession()` resets scores and runs a 3-second countdown (session start only) → clips play with prev/repeat/pause/next → a correct match auto-advances after 700 ms → `finishSession()` renders results.
-- `state.clips` entries hold `{name, path, kind, speaker, url, target, attempts, answer, lastWrong, result, skippedOnce, reached}`. `kind` is `audio` or `video`; the audio stage is corrected from `video.videoWidth` once metadata loads, so audio-only MP4/WebM files get the audio UI. `result` is `pending | correct | skipped`. Prev can revisit and solve an earlier clip; Next or End session commits a currently typed correct answer first (Next otherwise marks a pending clip skipped). Results distinguish reached-but-unanswered clips from never-reached ones. Scoring: percentage = correct / total; "First try" excludes clips with wrong tries or a prior skip; "Missed" = skipped + pending; "Wrong tries" sums `attempts`; only a fully correct session shows 100% and "Perfect ear."
-- Answer checking uses `normalize()` (NFKC, lowercase, apostrophes removed, all other punctuation → space); keep filename parsing, caption parsing, target editing, and typed answers using it. Typing is checked after a 450 ms pause (Enter checks immediately) so a short target is not accepted as a prefix of a longer word.
-- Countdown and auto-advance use `state.countdownToken` / `state.advanceTimer`. `cancelCountdown()` invalidates the token and must run whenever leaving the play screen; `finishSession()`, `disposeMedia()`, and session restarts already call it.
-- Object URLs are created in `loadFiles()`, revoked in `disposeMedia()` (new selection / Clear) and `removeClip()`. Preserve that lifecycle for both direct files and zip-extracted blobs.
-- The custom transport controls drive the `<video>` element directly; native `controls` are intentionally off. The audio overlay and video surface both call `togglePlayback()`.
+- `app/page.tsx` (client) owns the screen and media lifecycle: setup → practice → results. It creates and revokes the media object URL, remounts `PracticeScreen` on restart with `sessionKey`, and scrolls to the top whenever the screen or session changes.
+- `components/SetupScreen.tsx`: selects or drops one media file, POSTs it to `/api/transcribe`, shows processing status, then an editable sentence list (time range + text) and the Start button. It aborts an in-flight request when the file is replaced or cancelled.
+- `app/api/transcribe/route.ts` (Node runtime): parses multipart, validates the size, calls `transcribeFile()`, and returns `{ text, sentences }` or `{ error }` with an HTTP status.
+- `lib/vibe.ts` (server-only): manages a singleton local vibe-server through `globalThis.__listeningTypeVibe`. It spawns `serve --host 127.0.0.1 --port 0 --exit-with-parent true` from `.vibe/`, parses the ready JSON line, loads the model via `/v1/models/load` (CPU by default; `VIBE_GPU=1` tries GPU), health-checks and restarts once, and forwards uploads to `/v1/audio/transcriptions` with `response_format=verbose_json` and `language=en`. `VIBE_SERVER_URL` attaches to an already running server. Never import this module into a client component. The `turbopackIgnore` comments on the dynamic binary/model paths keep the build from tracing the whole project.
+- `lib/sentences.ts`: converts Whisper segments into sentence clips. It strips `[tags]`, `(tags)`, and speaker dashes; skips empty or invalid segments; and joins a continuation when the current text lacks terminal punctuation, the next segment starts lowercase, no new speaker is marked, and the result stays within 20 seconds / 240 characters.
+- `lib/listening.ts`: `normalize()` (NFKC, lowercase, apostrophes removed, all other punctuation → space), `formatTime()`, and `scoreSession()` (correct, first try, missed, wrong tries, and perfect only when every clip is correct; reached versus unseen is tracked).
+- `components/PracticeScreen.tsx`: owns clips, current index, answer, and timers (kept in refs). One `<video>` element plays both video and audio; `loadedmetadata` switches to the audio stage when `videoWidth === 0`. Each sentence seeks to its `start`; a `requestAnimationFrame` loop stops and rewinds at `end`. The session starts with a 3 × 800 ms countdown; a correct answer auto-advances after 700 ms; typing is checked after a 450 ms pause or on Enter. Next and End session commit a matching typed answer before moving on.
+- `components/ResultsScreen.tsx`: score ring, stats, per-sentence breakdown, and focus moved to the result heading on mount.
+
+## Data and configuration
+
+- Media never leaves the local machine; it is sent only to the Vibe server running on `127.0.0.1`. The browser keeps the original file URL for playback. Sessions are not persisted.
+- `.vibe/` contains the native server, ffmpeg, and Whisper model and is gitignored. `scripts/setup-vibe.mjs` pins the server/model downloads; `.env.example` documents overrides (`VIBE_SERVER_URL`, `VIBE_SERVER_PATH`, `VIBE_MODEL_PATH`, `VIBE_GPU`, `VIBE_LANGUAGE`, `MAX_UPLOAD_MB`).
+- Uploads go through Next rather than directly to Vibe to avoid CORS; the limit is 500 MB and is RAM-bound.
+- Tests: `test/sentences.test.mjs`, `test/listening.test.mjs`, and the archived `legacy/test/zip.test.mjs`. The suite relies on `"type": "module"` and Node 22.15+ type stripping.
 
 ## Conventions
 
-- Keep the app a single self-contained `index.html` with no dependencies or build step; it is meant to run offline by double-click.
-- Do not add a zip library; the in-file parser intentionally covers the pack format and common store/deflate zips only.
-- Style through the CSS variables at `:root`; dark theme only. `[hidden] { display: none !important; }` is load-bearing for screen switching and icon toggles.
-- Results rows render filenames/targets with `textContent`; filenames and zip metadata are untrusted input, so do not switch them to `innerHTML`.
+- Keep it local-first. Do not add cloud transcription, third-party uploads, or persistence of user media.
+- Keep UI dependencies at zero; styles live in `app/globals.css` (derived from the legacy design). Do not add a component library.
+- Server-only work belongs in `lib/vibe.ts` and route handlers. Client components must not import Node APIs.
+- Keep sentence grouping in `lib/sentences.ts` and matching/scoring in `lib/listening.ts`; tests import those modules directly.
+- `legacy/` is an archive for reference only. The Next.js app is the product.
