@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent, KeyboardEvent } from 'react';
 import { formatTime } from '@/lib/listening';
+import { loadRecent, saveRecent } from '@/lib/recent';
+import type { RecentEntry, RecentRecord } from '@/lib/recent';
 import { normalizeYouTubeUrl } from '@/lib/youtube-url';
 import type {
   MediaKind,
@@ -45,13 +47,23 @@ export default function SetupScreen({ onStart }: Props) {
   const [error, setError] = useState('');
   const [dragging, setDragging] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [recent, setRecent] = useState<RecentEntry | null>(null);
+  const [showSentences, setShowSentences] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const recentTokenRef = useRef(0);
 
   useEffect(() => {
-    return () => abortRef.current?.abort();
+    let active = true;
+    void loadRecent().then((entry) => {
+      if (active) setRecent(entry);
+    });
+    return () => {
+      active = false;
+      abortRef.current?.abort();
+    };
   }, []);
 
   useEffect(() => {
@@ -70,6 +82,14 @@ export default function SetupScreen({ onStart }: Props) {
     inputRef.current?.click();
   }
 
+  function remember(record: RecentRecord, blob: Blob, token: number) {
+    void saveRecent(record, blob)
+      .then(() => {
+        if (recentTokenRef.current === token) setRecent({ ...record, blob });
+      })
+      .catch(() => undefined);
+  }
+
   function resetToIdle() {
     abortRef.current?.abort();
     abortRef.current = null;
@@ -79,9 +99,10 @@ export default function SetupScreen({ onStart }: Props) {
     setError('');
     setElapsed(0);
     setStatus('idle');
+    setShowSentences(false);
   }
 
-  async function transcribe(selected: File, controller: AbortController) {
+  async function transcribe(selected: File, controller: AbortController, token: number) {
     try {
       const body = new FormData();
       body.append('file', selected);
@@ -105,6 +126,22 @@ export default function SetupScreen({ onStart }: Props) {
       setRemote(null);
       setSentences(data.sentences);
       setStatus('ready');
+      setShowSentences(false);
+      if (recentTokenRef.current === token) {
+        remember(
+          {
+            title: selected.name,
+            kind: selected.type.startsWith('audio/') ? 'audio' : 'video',
+            origin: 'upload',
+            source: 'vibe',
+            sentences: data.sentences,
+            fileName: selected.name,
+            mime: selected.type || 'application/octet-stream',
+          },
+          selected,
+          token
+        );
+      }
     } catch (err) {
       if (controller.signal.aborted) return;
       setError(err instanceof Error ? err.message : 'Transcription failed.');
@@ -130,6 +167,7 @@ export default function SetupScreen({ onStart }: Props) {
       return;
     }
 
+    const token = ++recentTokenRef.current;
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -142,7 +180,7 @@ export default function SetupScreen({ onStart }: Props) {
     setElapsed(0);
     setProcessingLabel('Transcribing with Vibe');
     setStatus('processing');
-    void transcribe(selected, controller);
+    void transcribe(selected, controller, token);
   }
 
   async function beginYouTube() {
@@ -156,6 +194,7 @@ export default function SetupScreen({ onStart }: Props) {
       return;
     }
 
+    const token = ++recentTokenRef.current;
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -187,13 +226,38 @@ export default function SetupScreen({ onStart }: Props) {
         throw new Error('No sentences were returned for this video.');
       }
 
-      setRemote({
-        url: data.mediaUrl,
-        title: data.title?.trim() || 'YouTube video',
-        source: data.source === 'vibe' ? 'vibe' : 'captions',
-      });
+      const title = data.title?.trim() || 'YouTube video';
+      const source: TranscriptSource = data.source === 'vibe' ? 'vibe' : 'captions';
+      setRemote({ url: data.mediaUrl, title, source });
       setSentences(data.sentences);
       setStatus('ready');
+      setShowSentences(false);
+
+      const mediaUrl = data.mediaUrl;
+      const savedSentences = data.sentences;
+      void (async () => {
+        try {
+          const media = await fetch(mediaUrl);
+          if (!media.ok) return;
+          const blob = await media.blob();
+          if (recentTokenRef.current !== token) return;
+          remember(
+            {
+              title,
+              kind: 'video',
+              origin: 'youtube',
+              source,
+              sentences: savedSentences,
+              fileName: `${title}.mp4`,
+              mime: blob.type || 'video/mp4',
+            },
+            blob,
+            token
+          );
+        } catch {
+          // The current session still works; the recent stays best-effort.
+        }
+      })();
     } catch (err) {
       if (controller.signal.aborted) return;
       setError(err instanceof Error ? err.message : 'Could not prepare this video.');
@@ -229,7 +293,7 @@ export default function SetupScreen({ onStart }: Props) {
   function updateSentence(index: number, text: string) {
     setSentences((current) =>
       current.map((sentence, i) =>
-        i === index ? { ...sentence, text, words: undefined } : sentence
+        i === index ? { ...sentence, text, words: undefined, custom: true } : sentence
       )
     );
   }
@@ -252,6 +316,21 @@ export default function SetupScreen({ onStart }: Props) {
       const kind: MediaKind = file.type.startsWith('audio/') ? 'audio' : 'video';
       onStart({ kind, file }, prepared);
     }
+  }
+
+  function useRecent() {
+    if (!recent) return;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    const file = new File([recent.blob], recent.fileName, { type: recent.mime });
+    setSourceMode(recent.origin === 'youtube' ? 'youtube' : 'file');
+    setFile(file);
+    setRemote(null);
+    setSentences(recent.sentences);
+    setError('');
+    setElapsed(0);
+    setStatus('ready');
+    setShowSentences(false);
   }
 
   const hasInvalid = sentences.some((sentence) => !/[\p{L}\p{N}]/u.test(sentence.text));
@@ -281,6 +360,26 @@ export default function SetupScreen({ onStart }: Props) {
           sentence, line by line.
         </p>
       </div>
+
+      {status === 'idle' && recent && (
+        <div className="recent-card">
+          <div className="recent-meta">
+            <span className="chip">Recent</span>
+            <span className="recent-title" title={recent.title}>
+              {recent.title}
+            </span>
+            <span className="recent-sub">
+              {recent.origin === 'youtube' ? 'YouTube' : 'Upload'} ·{' '}
+              {recent.sentences.length}{' '}
+              {recent.sentences.length === 1 ? 'sentence' : 'sentences'} ·{' '}
+              {recent.source === 'vibe' ? 'Vibe transcript' : 'YouTube captions'}
+            </span>
+          </div>
+          <button className="btn btn-primary btn-sm" type="button" onClick={useRecent}>
+            Use recent
+          </button>
+        </div>
+      )}
 
       {status !== 'ready' && (
         <div
@@ -469,8 +568,31 @@ export default function SetupScreen({ onStart }: Props) {
                 <span>{sentences.length}</span>{' '}
                 {sentences.length === 1 ? 'sentence' : 'sentences'} ready
               </h2>
+              <button
+                className="clip-toggle"
+                type="button"
+                aria-expanded={showSentences}
+                aria-controls="clip-list"
+                onClick={() => setShowSentences((value) => !value)}
+              >
+                {showSentences ? 'Hide list' : 'Show list'}
+                <svg
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
             </div>
 
+            <div id="clip-list" hidden={!showSentences}>
             <ol className="clip-list">
               {sentences.map((sentence, index) => (
                 <li className="clip-row" key={`${sentence.start}-${sentence.end}-${index}`}>
@@ -507,6 +629,7 @@ export default function SetupScreen({ onStart }: Props) {
                 </li>
               ))}
             </ol>
+            </div>
 
             {hasInvalid && (
               <p className="feedback bad" style={{ textAlign: 'left' }}>

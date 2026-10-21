@@ -11,6 +11,7 @@ export type Sentence = {
   end: number;
   text: string;
   words?: SentenceWord[];
+  custom?: boolean;
 };
 
 export type ClipResult = 'pending' | 'correct' | 'skipped';

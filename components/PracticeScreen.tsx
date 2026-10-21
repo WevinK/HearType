@@ -145,17 +145,14 @@ export default function PracticeScreen({
       setReadOnly(currentClip.result === 'correct');
       setShake(false);
       setShowTap(false);
+      const wrongHint = currentClip.attempts
+        ? `${currentClip.attempts} wrong ${currentClip.attempts === 1 ? 'key' : 'keys'}`
+        : '';
       setAttemptHint(
-        currentClip.result === 'correct'
-          ? 'Correct — press Enter or Continue.'
-          : currentClip.attempts
-            ? `${currentClip.attempts} wrong ${currentClip.attempts === 1 ? 'key' : 'keys'}`
-            : 'Type the missing letters'
+        currentClip.result === 'correct' ? wrongHint : wrongHint || 'Type the missing letters'
       );
       setFeedback(
-        currentClip.result === 'correct'
-          ? { text: 'Already solved — press Enter or Continue.', kind: 'good' }
-          : { text: '', kind: '' }
+        currentClip.result === 'correct' ? { text: 'Already solved.', kind: 'good' } : { text: '', kind: '' }
       );
 
       if (autoplay) seekAndPlay(currentClip.start);
@@ -203,8 +200,10 @@ export default function PracticeScreen({
     );
     setReadOnly(true);
     setShake(false);
-    setAttemptHint('Correct — press Enter or Continue.');
-    setFeedback({ text: '✓ Correct! Press Enter or Continue.', kind: 'good' });
+    setAttemptHint(
+      clip.attempts ? `${clip.attempts} wrong ${clip.attempts === 1 ? 'key' : 'keys'}` : ''
+    );
+    setFeedback({ text: '✓ Correct!', kind: 'good' });
   }, [updateClips]);
 
   const buzz = useCallback(() => {
@@ -756,7 +755,17 @@ export default function PracticeScreen({
 
       <div className="answer">
         <div className="answer-head">
-          <label htmlFor="answerInput">Type the missing letters</label>
+          <div className="answer-title">
+            <label htmlFor="answerInput">Type the missing letters</label>
+            {current.custom && (
+              <span
+                className="custom-chip"
+                title="Word timing is estimated from your edited text."
+              >
+                Custom sentence
+              </span>
+            )}
+          </div>
           <button
             className="clear-btn"
             type="button"
@@ -802,16 +811,17 @@ export default function PracticeScreen({
             aria-describedby="answerFeedback"
           />
         </div>
-        <p
-          id="answerFeedback"
-          className={`feedback${feedback.kind ? ` ${feedback.kind}` : ''}`}
-          aria-live="polite"
-        >
-          {feedback.text}
-        </p>
-        <div className="answer-meta">
-          <span>{attemptHint}</span>
-          <span>{current.result === 'correct' ? 'Press Enter or Continue' : 'Every key is checked'}</span>
+        <div className="answer-status">
+          <p
+            id="answerFeedback"
+            className={`feedback${feedback.kind ? ` ${feedback.kind}` : ''}`}
+            aria-live="polite"
+          >
+            {feedback.text}
+          </p>
+          <span className="answer-hint">
+            {current.result === 'correct' ? 'Press Enter to continue' : attemptHint}
+          </span>
         </div>
         {current.result === 'correct' && !counting && (
           <button className="btn btn-primary continue-btn" type="button" onClick={advance}>
