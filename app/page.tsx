@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import PracticeScreen from '@/components/PracticeScreen';
 import ResultsScreen from '@/components/ResultsScreen';
 import SetupScreen from '@/components/SetupScreen';
-import type { Clip, MediaKind, Sentence } from '@/lib/types';
+import type { Clip, MediaKind, PlayableSource, Sentence } from '@/lib/types';
 
 type Screen = 'setup' | 'practice' | 'results';
 type MediaAsset = { url: string; kind: MediaKind };
@@ -16,10 +16,13 @@ export default function Home() {
   const [results, setResults] = useState<Clip[]>([]);
   const [sessionKey, setSessionKey] = useState(0);
   const mediaUrlRef = useRef<string | null>(null);
+  const mediaRevokeRef = useRef(false);
 
   useEffect(() => {
     return () => {
-      if (mediaUrlRef.current) URL.revokeObjectURL(mediaUrlRef.current);
+      if (mediaUrlRef.current && mediaRevokeRef.current) {
+        URL.revokeObjectURL(mediaUrlRef.current);
+      }
     };
   }, []);
 
@@ -28,20 +31,25 @@ export default function Home() {
   }, [screen, sessionKey]);
 
   function clearMedia() {
-    if (mediaUrlRef.current) {
+    if (mediaUrlRef.current && mediaRevokeRef.current) {
       URL.revokeObjectURL(mediaUrlRef.current);
-      mediaUrlRef.current = null;
     }
+    mediaUrlRef.current = null;
+    mediaRevokeRef.current = false;
     setMedia(null);
     setSentences([]);
     setResults([]);
   }
 
-  function handleStart(file: File, nextSentences: Sentence[], kind: MediaKind) {
+  function handleStart(source: PlayableSource, nextSentences: Sentence[]) {
     clearMedia();
-    const url = URL.createObjectURL(file);
+
+    const url = 'file' in source ? URL.createObjectURL(source.file) : source.url;
+    const revoke = 'file' in source;
     mediaUrlRef.current = url;
-    setMedia({ url, kind });
+    mediaRevokeRef.current = revoke;
+
+    setMedia({ url, kind: source.kind });
     setSentences(nextSentences);
     setSessionKey((key) => key + 1);
     setScreen('practice');
