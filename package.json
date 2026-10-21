@@ -2,12 +2,13 @@
   "name": "listening-type",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3100",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3100",
     "setup:vibe": "node scripts/setup-vibe.mjs",
-    "test": "node --test test/zip.test.mjs",
+    "test": "node --experimental-strip-types --test test/sentences.test.mjs test/zip.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

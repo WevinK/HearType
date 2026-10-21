@@ -1,0 +1,117 @@
+import { createWriteStream } from 'node:fs';
+import { chmod, mkdir, rename, rm, stat } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import { fileURLToPath } from 'node:url';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const vibeDir = path.join(root, '.vibe');
+const modelDir = path.join(vibeDir, 'models');
+const serverVersion = process.env.VIBE_SERVER_VERSION || 'server-v0.6.10';
+const modelName = 'ggml-base.en.bin';
+const modelPath = path.join(modelDir, modelName);
+const modelUrl = `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${modelName}`;
+
+function assetName() {
+  if (process.platform === 'win32' && process.arch === 'x64') {
+    return 'vibe-server-windows-amd64-with-ffmpeg.zip';
+  }
+  if (process.platform === 'darwin' && process.arch === 'arm64') {
+    return 'vibe-server-darwin-arm64-with-ffmpeg.tar.gz';
+  }
+  if (process.platform === 'darwin' && process.arch === 'x64') {
+    return 'vibe-server-darwin-amd64-with-ffmpeg.tar.gz';
+  }
+  if (process.platform === 'linux' && process.arch === 'x64') {
+    return 'vibe-server-linux-amd64';
+  }
+  if (process.platform === 'linux' && process.arch === 'arm64') {
+    return 'vibe-server-linux-arm64';
+  }
+  throw new Error(`Unsupported platform: ${process.platform} ${process.arch}`);
+}
+
+const asset = assetName();
+const downloadUrl = `https://github.com/thewh1teagle/vibe/releases/download/${serverVersion}/${asset}`;
+const archivePath = path.join(vibeDir, asset);
+const serverPath = path.join(vibeDir, process.platform === 'win32' ? 'vibe-server.exe' : 'vibe-server');
+const ffmpegPath = path.join(vibeDir, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
+
+async function fileExists(file) {
+  try {
+    await stat(file);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function download(url, destination, label) {
+  console.log(`Downloading ${label}…`);
+  const response = await fetch(url, {
+    headers: { 'user-agent': 'listening-type-setup' },
+    redirect: 'follow',
+  });
+  if (!response.ok || !response.body) {
+    throw new Error(`Download failed (${response.status}) for ${url}`);
+  }
+  const total = Number(response.headers.get('content-length') || 0);
+  if (total) console.log(`  ${(total / 1024 / 1024).toFixed(0)} MB`);
+  const part = `${destination}.part`;
+  try {
+    await pipeline(Readable.fromWeb(response.body), createWriteStream(part));
+    await rename(part, destination);
+  } catch (error) {
+    await rm(part, { force: true });
+    throw error;
+  }
+}
+
+async function main() {
+  await mkdir(vibeDir, { recursive: true });
+
+  const needsServer = !(await fileExists(serverPath));
+  const needsFfmpeg = process.platform !== 'linux' && !(await fileExists(ffmpegPath));
+
+  if (needsServer || needsFfmpeg) {
+    if (asset.endsWith('.zip') || asset.endsWith('.tar.gz')) {
+      await download(downloadUrl, archivePath, asset);
+      console.log('Extracting vibe-server…');
+      execFileSync('tar', ['-xf', archivePath, '-C', vibeDir], { stdio: 'inherit' });
+      await rm(archivePath, { force: true });
+    } else {
+      await download(downloadUrl, serverPath, asset);
+      await chmod(serverPath, 0o755);
+    }
+  } else {
+    console.log('vibe-server already installed.');
+  }
+
+  if (process.platform === 'linux') {
+    try {
+      execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' });
+    } catch {
+      console.warn('ffmpeg was not found on PATH. Install it so Vibe can read videos.');
+    }
+  }
+
+  const modelExists = (await fileExists(modelPath)) && (await stat(modelPath)).size > 100_000_000;
+  if (!modelExists) {
+    await mkdir(modelDir, { recursive: true });
+    await download(modelUrl, modelPath, modelName);
+  } else {
+    console.log('Whisper model already present.');
+  }
+
+  console.log('\nVibe is ready.');
+  console.log(`  server: ${serverPath}`);
+  console.log(`  model:  ${modelPath}`);
+  console.log('Run npm run dev and upload a video.');
+}
+
+main().catch((error) => {
+  console.error(`\nSetup failed: ${error.message}`);
+  process.exitCode = 1;
+});
