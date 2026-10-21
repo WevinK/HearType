@@ -24,8 +24,60 @@ const MIN_SENTENCE_SECONDS = 0.1;
 const MAX_CAPTION_SECONDS = 10;
 const MAX_CAPTION_CHARS = 160;
 const CAPTION_GAP_SECONDS = 1.2;
+const SHORT_CLIP_SECONDS = 2.5;
 
 type WorkingSentence = Sentence & { words: SentenceWord[] };
+
+function isShortClip(sentence: Sentence): boolean {
+  return sentence.end - sentence.start < SHORT_CLIP_SECONDS;
+}
+
+function mergeClips(first: Sentence, second: Sentence): Sentence {
+  return {
+    start: Math.min(first.start, second.start),
+    end: Math.max(first.end, second.end),
+    text: `${first.text} ${second.text}`,
+    ...(first.words && second.words ? { words: [...first.words, ...second.words] } : {}),
+  };
+}
+
+/** Merge a short clip into a neighbour when the gap and combined caps allow. */
+function mergeShortClips(
+  sentences: Sentence[],
+  options: {
+    gapSeconds: number;
+    maxSeconds: number;
+    maxChars: number;
+    breaks?: boolean[];
+  }
+): Sentence[] {
+  const merged: Sentence[] = [];
+
+  for (let index = 0; index < sentences.length; index++) {
+    const sentence = sentences[index];
+    const previous = merged[merged.length - 1];
+
+    if (previous) {
+      const start = Math.min(previous.start, sentence.start);
+      const end = Math.max(previous.end, sentence.end);
+      const canMerge =
+        !(options.breaks?.[index] ?? false) &&
+        sentence.start - previous.end <= options.gapSeconds &&
+        (isShortClip(previous) || isShortClip(sentence)) &&
+        end - start <= options.maxSeconds &&
+        previous.text.length + sentence.text.length + 1 <= options.maxChars;
+
+      if (canMerge) {
+        merged[merged.length - 1] = mergeClips(previous, sentence);
+        continue;
+      }
+    }
+
+    merged.push(sentence);
+  }
+
+  return merged;
+}
 
 function cleanText(text: string): string {
   return text
@@ -44,8 +96,10 @@ export function buildSentences(segments: unknown): Sentence[] {
   if (!Array.isArray(segments)) return [];
 
   const sentences: Sentence[] = [];
+  const sentenceBreaks: boolean[] = [];
   let current: WorkingSentence | null = null;
   let forceNew = false;
+  let breakBefore = false;
 
   const makeSentence = (word: SentenceWord): WorkingSentence => ({
     start: word.start,
@@ -58,6 +112,8 @@ export function buildSentences(segments: unknown): Sentence[] {
     if (!current) return;
     current.end = Math.max(current.end, current.start + MIN_SENTENCE_SECONDS);
     sentences.push(current);
+    sentenceBreaks.push(breakBefore);
+    breakBefore = false;
     current = null;
   };
 
@@ -81,12 +137,14 @@ export function buildSentences(segments: unknown): Sentence[] {
     if (SPEAKER_ONLY.test(original)) {
       close();
       forceNew = true;
+      breakBefore = true;
       continue;
     }
 
     if (SPEAKER_PREFIX.test(original)) {
       close();
       forceNew = true;
+      breakBefore = true;
       original = original.replace(SPEAKER_PREFIX, '');
       if (!original) continue;
     }
@@ -138,7 +196,12 @@ export function buildSentences(segments: unknown): Sentence[] {
   }
 
   close();
-  return sentences;
+  return mergeShortClips(sentences, {
+    gapSeconds: MAX_WORD_GAP_SECONDS,
+    maxSeconds: MAX_MERGED_SECONDS,
+    maxChars: MAX_MERGED_CHARS,
+    breaks: sentenceBreaks,
+  });
 }
 
 /**
@@ -203,5 +266,9 @@ export function buildCaptionSentences(cues: unknown): Sentence[] {
   }
 
   if (current) sentences.push(current);
-  return sentences;
+  return mergeShortClips(sentences, {
+    gapSeconds: CAPTION_GAP_SECONDS,
+    maxSeconds: MAX_CAPTION_SECONDS,
+    maxChars: MAX_CAPTION_CHARS,
+  });
 }

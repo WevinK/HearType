@@ -1,5 +1,61 @@
 const TYPEABLE = /[\p{L}\p{N}]/u;
 
+const FILLER_WORDS = new Set([
+  'hmm',
+  'hm',
+  'mm',
+  'mmm',
+  'uh',
+  'uhh',
+  'um',
+  'umm',
+  'ah',
+  'ahh',
+  'oh',
+  'ohh',
+  'ooh',
+  'eh',
+  'ehh',
+  'er',
+  'erm',
+  'huh',
+  'wow',
+  'whoa',
+  'yeah',
+  'yeahh',
+  'yep',
+  'nope',
+  'okay',
+  'ok',
+  'uh-huh',
+  'mm-hmm',
+  'hm-hmm',
+]);
+
+function normalizedWord(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+}
+
+function isFillerWord(text: string): boolean {
+  const word = normalizedWord(text);
+  if (!word) return false;
+  if (FILLER_WORDS.has(word)) return true;
+
+  return (
+    /^h+m+$/.test(word) ||
+    /^m+$/.test(word) ||
+    /^u+h+$/.test(word) ||
+    /^u+m+$/.test(word) ||
+    /^a+h+$/.test(word) ||
+    /^o+h+$/.test(word) ||
+    /^e+h+$/.test(word) ||
+    /^e+r+m?$/.test(word) ||
+    /^h+u+h+$/.test(word)
+  );
+}
+
 export type TypingChar = {
   char: string;
   hidden: boolean;
@@ -52,7 +108,8 @@ export function seededRandom(seed: number): () => number {
 
 /**
  * Split a sentence into whole-word clues and whole-word blanks. A random
- * 50% of the typeable words (at least one stays blank) are shown in full.
+ * 50% of the typeable, non-filler words (at least one stays blank) are shown
+ * in full. Filler responses are always shown, not typed.
  */
 export function buildTypingLayout(
   text: string,
@@ -63,12 +120,13 @@ export function buildTypingLayout(
   const typeableWords = wordTexts
     .map((word, index) => (Array.from(word).some((char) => TYPEABLE.test(char)) ? index : -1))
     .filter((index) => index >= 0);
+  const choiceWords = typeableWords.filter((index) => !isFillerWord(wordTexts[index]));
   const revealedCount = Math.min(
-    Math.max(0, typeableWords.length - 1),
-    Math.max(0, Math.floor(typeableWords.length * revealRatio))
+    Math.max(0, choiceWords.length - 1),
+    Math.max(0, Math.floor(choiceWords.length * revealRatio))
   );
 
-  const order = [...typeableWords];
+  const order = [...choiceWords];
   for (let i = order.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));
     [order[i], order[j]] = [order[j], order[i]];
@@ -80,7 +138,8 @@ export function buildTypingLayout(
 
   for (const [wordIndex, wordText] of wordTexts.entries()) {
     const typeableCount = Array.from(wordText).filter((char) => TYPEABLE.test(char)).length;
-    const revealed = clueWords.has(wordIndex) || typeableCount === 0;
+    const revealed =
+      clueWords.has(wordIndex) || typeableCount === 0 || isFillerWord(wordText);
 
     const chars: TypingChar[] = [];
     const hiddenIndices: number[] = [];

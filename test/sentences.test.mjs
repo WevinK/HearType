@@ -96,7 +96,7 @@ test('drops empty and non-speech words', () => {
   assert.equal(sentences[0].end, 1.9);
 });
 
-test('splits after terminal punctuation', () => {
+test('merges short sentences across terminal punctuation', () => {
   const sentences = buildSentences([
     { start: 0, end: 0.5, text: ' Hello.' },
     { start: 0.5, end: 0.8, text: ' How' },
@@ -106,7 +106,42 @@ test('splits after terminal punctuation', () => {
 
   assert.deepEqual(
     sentences.map((sentence) => sentence.text),
-    ['Hello.', 'How are you?']
+    ['Hello. How are you?']
+  );
+  assert.equal(sentences[0].start, 0);
+  assert.equal(sentences[0].end, 1.3);
+});
+
+test('splits long sentences at terminal punctuation', () => {
+  const sentences = buildSentences([
+    { start: 0, end: 4, text: ' This sentence is long enough to stand alone.' },
+    { start: 4, end: 8, text: ' This second sentence is also long enough.' },
+  ]);
+
+  assert.equal(sentences.length, 2);
+});
+
+test('merges a short clip into a long previous clip', () => {
+  const sentences = buildSentences([
+    { start: 0, end: 4, text: ' This is a fairly long sentence.' },
+    { start: 4, end: 5, text: ' Yes.' },
+  ]);
+
+  assert.equal(sentences.length, 1);
+  assert.equal(sentences[0].text, 'This is a fairly long sentence. Yes.');
+  assert.equal(sentences[0].end, 5);
+});
+
+test('merges a short clip with the next when the previous is too long', () => {
+  const sentences = buildSentences([
+    { start: 0, end: 9.5, text: ' This sentence is long enough to stand alone.' },
+    { start: 9.5, end: 10.5, text: ' Short.' },
+    { start: 10.5, end: 12.5, text: ' This one is next.' },
+  ]);
+
+  assert.deepEqual(
+    sentences.map((sentence) => sentence.text),
+    ['This sentence is long enough to stand alone.', 'Short. This one is next.']
   );
 });
 

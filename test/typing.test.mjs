@@ -164,6 +164,22 @@ test('counts a blank slot as not typed', () => {
   assert.deepEqual(addedWrongSlots('th', 'th  e', hidden), []);
 });
 
+test('shows filler responses and blanks the remaining words', () => {
+  const layout = buildTypingLayout('hmm i think so', 0.5, high);
+
+  assert.equal(layout.words[0].revealed, true);
+  assert.equal(layout.words[1].revealed, true);
+  assert.equal(layout.words[2].revealed, false);
+  assert.equal(layout.hiddenChars.join(''), 'thinkso');
+});
+
+test('shows a clip made only of fillers', () => {
+  const layout = buildTypingLayout('Hmm, okay.', 0.5, high);
+
+  assert.equal(layout.hiddenCount, 0);
+  assert.ok(layout.words.every((word) => word.revealed));
+});
+
 test('uses the caret position for the active word', () => {
   const layout = buildTypingLayout('Hello there.', 0.5, high);
   const result = evaluateTyping(layout, 'there', [], 2);

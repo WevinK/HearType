@@ -252,6 +252,12 @@ export default function PracticeScreen({
     setFeedback({ text: '✓ Correct!', kind: 'good' });
   }, [updateClips]);
 
+  useEffect(() => {
+    if (!counting && current && current.result === 'pending' && layout.hiddenCount === 0) {
+      markCorrect();
+    }
+  }, [counting, current, layout.hiddenCount, markCorrect]);
+
   const buzz = useCallback(() => {
     try {
       const AudioContextClass = window.AudioContext;

@@ -15,19 +15,19 @@ test('groups millisecond caption cues into sentence clips', () => {
     { text: 'this is a new sentence', offset: 18000, duration: 2000 },
   ]);
 
-  assert.equal(result.length, 3);
+  assert.equal(result.length, 2);
   assert.equal(
     result[0].text,
     'hello welcome to the english easy practice course'
   );
   assert.ok(Math.abs(result[0].start - 7.359) < 1e-9);
   assert.equal(result[0].end, 13.679);
-  assert.equal(result[1].text, 'now you will listen to some daily conversations.');
+  assert.equal(
+    result[1].text,
+    'now you will listen to some daily conversations. this is a new sentence'
+  );
   assert.equal(result[1].start, 13.679);
-  assert.equal(result[1].end, 18);
-  assert.equal(result[2].text, 'this is a new sentence');
-  assert.equal(result[2].start, 18);
-  assert.equal(result[2].end, 20);
+  assert.equal(result[1].end, 20);
 });
 
 test('handles second-based caption cues and sentence punctuation', () => {
@@ -37,8 +37,7 @@ test('handles second-based caption cues and sentence punctuation', () => {
   ]);
 
   assert.deepEqual(result, [
-    { start: 1, end: 2, text: 'Hello there.' },
-    { start: 2.5, end: 3.5, text: 'How are you?' },
+    { start: 1, end: 3.5, text: 'Hello there. How are you?' },
   ]);
 });
 
