@@ -1,13 +1,77 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import PracticeScreen from '@/components/PracticeScreen';
+import ResultsScreen from '@/components/ResultsScreen';
+import SetupScreen from '@/components/SetupScreen';
+import type { Clip, MediaKind, Sentence } from '@/lib/types';
+
+type Screen = 'setup' | 'practice' | 'results';
+type MediaAsset = { url: string; kind: MediaKind };
+
 export default function Home() {
+  const [screen, setScreen] = useState<Screen>('setup');
+  const [media, setMedia] = useState<MediaAsset | null>(null);
+  const [sentences, setSentences] = useState<Sentence[]>([]);
+  const [results, setResults] = useState<Clip[]>([]);
+  const [sessionKey, setSessionKey] = useState(0);
+  const mediaUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (mediaUrlRef.current) URL.revokeObjectURL(mediaUrlRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [screen, sessionKey]);
+
+  function clearMedia() {
+    if (mediaUrlRef.current) {
+      URL.revokeObjectURL(mediaUrlRef.current);
+      mediaUrlRef.current = null;
+    }
+    setMedia(null);
+    setSentences([]);
+    setResults([]);
+  }
+
+  function handleStart(file: File, nextSentences: Sentence[], kind: MediaKind) {
+    clearMedia();
+    const url = URL.createObjectURL(file);
+    mediaUrlRef.current = url;
+    setMedia({ url, kind });
+    setSentences(nextSentences);
+    setSessionKey((key) => key + 1);
+    setScreen('practice');
+  }
+
+  function handleFinish(clips: Clip[]) {
+    setResults(clips);
+    setScreen('results');
+  }
+
+  function handleRestart() {
+    setResults([]);
+    setSessionKey((key) => key + 1);
+    setScreen('practice');
+  }
+
+  function handleNew() {
+    clearMedia();
+    setScreen('setup');
+  }
+
   return (
     <>
       <header className="topbar">
         <div className="brand">
           <span className="logo" aria-hidden="true">
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
+            <span />
+            <span />
+            <span />
+            <span />
           </span>
           <span>
             Listening<em>Type</em>
@@ -16,41 +80,21 @@ export default function Home() {
       </header>
 
       <main>
-        <section className="screen setup">
-          <div className="hero">
-            <p className="eyebrow">Local transcription · sentence practice</p>
-            <h1>
-              Hear it. <span className="grad">Type it.</span>
-              <br />
-              Own it.
-            </h1>
-            <p className="sub">
-              Upload a video. Vibe turns the speech into sentences. Then listen and type
-              each one, line by line.
-            </p>
-          </div>
+        {screen === 'setup' && <SetupScreen onStart={handleStart} />}
 
-          <div className="dropzone">
-            <div className="drop-icon" aria-hidden="true">
-              <svg
-                viewBox="0 0 24 24"
-                width="26"
-                height="26"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.7"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M12 16V4" />
-                <path d="m6 10 6-6 6 6" />
-                <path d="M4 20h16" />
-              </svg>
-            </div>
-            <p className="drop-title">Upload a clip to get started</p>
-            <p className="drop-sub">The upload flow is coming in the next commit.</p>
-          </div>
-        </section>
+        {screen === 'practice' && media && (
+          <PracticeScreen
+            key={sessionKey}
+            mediaUrl={media.url}
+            mediaKind={media.kind}
+            sentences={sentences}
+            onFinish={handleFinish}
+          />
+        )}
+
+        {screen === 'results' && (
+          <ResultsScreen clips={results} onRestart={handleRestart} onNew={handleNew} />
+        )}
       </main>
     </>
   );

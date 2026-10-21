@@ -14,6 +14,9 @@ next-env.d.ts
 .env*
 !.env.example
 
+# local browser test artifacts
+/.playwright-mcp/
+
 # misc
 .DS_Store
 Thumbs.db
