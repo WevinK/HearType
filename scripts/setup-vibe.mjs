@@ -63,7 +63,7 @@ async function fileExists(file) {
 async function download(url, destination, label) {
   console.log(`Downloading ${label}…`);
   const response = await fetch(url, {
-    headers: { 'user-agent': 'listening-type-setup' },
+    headers: { 'user-agent': 'hear-type-setup' },
     redirect: 'follow',
   });
   if (!response.ok || !response.body) {

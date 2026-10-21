@@ -30,21 +30,21 @@ type Server = {
 };
 
 const cache = globalThis as typeof globalThis & {
-  __listeningTypeVibe?: Promise<Server>;
+  __hearTypeVibe?: Promise<Server>;
 };
 
 export async function ensureVibe(attempt = 0): Promise<Server> {
-  if (!cache.__listeningTypeVibe) {
-    cache.__listeningTypeVibe = startVibe().catch((error) => {
-      delete cache.__listeningTypeVibe;
+  if (!cache.__hearTypeVibe) {
+    cache.__hearTypeVibe = startVibe().catch((error) => {
+      delete cache.__hearTypeVibe;
       throw error;
     });
   }
 
-  const server = await cache.__listeningTypeVibe;
+  const server = await cache.__hearTypeVibe;
   if (await isHealthy(server.baseUrl)) return server;
 
-  delete cache.__listeningTypeVibe;
+  delete cache.__hearTypeVibe;
   if (server.child) server.child.kill();
   if (attempt >= 1) {
     throw new VibeError('The local Vibe server stopped unexpectedly. Try again.');

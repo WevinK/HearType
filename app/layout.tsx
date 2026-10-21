@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'ListeningType — listen. type. own it.',
+  title: 'HearType — listen. type. own it.',
   description:
     'Local English listening practice. Upload a video or paste a YouTube link, then type each sentence as you hear it.',
 };

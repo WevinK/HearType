@@ -1,8 +1,8 @@
-# ListeningType
+# HearType
 
 English listening practice built from your own videos.
 
-Upload a clip or paste a public YouTube link. [Vibe](https://thewh1teagle.github.io/vibe/) transcribes uploaded files locally. YouTube links use YouTube's English captions when available, with Vibe as a fallback; the video is downloaded locally for playback. Then you listen to each sentence and type it. A correct answer advances automatically, and the final screen shows exactly what you missed.
+Upload a clip or paste a public YouTube link. [Vibe](https://thewh1teagle.github.io/vibe/) transcribes uploaded files locally. YouTube links use YouTube's English captions when available, with Vibe as a fallback; the video is downloaded locally for playback. Then you listen to each sentence and type it. A correct answer shows a Continue button; press Enter or click it to move on, and the final screen shows exactly what you missed.
 
 Everything runs on your machine. No audio or video is sent to a cloud service.
 

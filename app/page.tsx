@@ -82,7 +82,7 @@ export default function Home() {
             <span />
           </span>
           <span>
-            Listening<em>Type</em>
+            Hear<em>Type</em>
           </span>
         </div>
       </header>
