@@ -11,7 +11,7 @@
     "build": "next build",
     "start": "next start -p 3100",
     "setup:vibe": "node scripts/setup-vibe.mjs",
-    "test": "node --experimental-strip-types --test test/sentences.test.mjs test/listening.test.mjs legacy/test/zip.test.mjs",
+    "test": "node --experimental-strip-types --test test/sentences.test.mjs test/listening.test.mjs test/youtube-url.test.mjs legacy/test/zip.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
