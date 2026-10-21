@@ -107,9 +107,9 @@ export function seededRandom(seed: number): () => number {
 }
 
 /**
- * Split a sentence into whole-word clues and whole-word blanks. A random
- * 50% of the typeable, non-filler words (at least one stays blank) are shown
- * in full. Filler responses are always shown, not typed.
+ * Split a sentence into whole-word clues and whole-word blanks. The requested
+ * ratio of typeable, non-filler words is shown in full, so 100% leaves no
+ * blanks. Filler responses are always shown, not typed.
  */
 export function buildTypingLayout(
   text: string,
@@ -121,9 +121,9 @@ export function buildTypingLayout(
     .map((word, index) => (Array.from(word).some((char) => TYPEABLE.test(char)) ? index : -1))
     .filter((index) => index >= 0);
   const choiceWords = typeableWords.filter((index) => !isFillerWord(wordTexts[index]));
-  const revealedCount = Math.min(
-    Math.max(0, choiceWords.length - 1),
-    Math.max(0, Math.floor(choiceWords.length * revealRatio))
+  const revealedCount = Math.max(
+    0,
+    Math.min(choiceWords.length, Math.floor(choiceWords.length * revealRatio))
   );
 
   const order = [...choiceWords];

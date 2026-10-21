@@ -14,31 +14,45 @@ export async function chooseTranscript(
   videoId: string,
   filePath: string,
   vibe: VibeTranscriber,
-  captions: CaptionFetcher
+  captions: CaptionFetcher,
+  preference: TranscriptSource = 'vibe'
 ): Promise<TranscriptChoice> {
+  const fromVibe = async (): Promise<TranscriptChoice> => ({
+    sentences: (await vibe(filePath)).sentences,
+    source: 'vibe',
+  });
+  const fromCaptions = async (): Promise<TranscriptChoice> => {
+    const sentences = await captions(videoId);
+    if (!sentences.length) throw new Error('No caption sentences were found.');
+    return { sentences, source: 'captions' };
+  };
+
+  const captionsFirst = preference === 'captions';
+  const first = captionsFirst ? fromCaptions : fromVibe;
+  const second = captionsFirst ? fromVibe : fromCaptions;
+  const firstLabel = captionsFirst ? 'YouTube captions are unavailable' : 'Vibe transcription unavailable';
+
   try {
-    return { sentences: (await vibe(filePath)).sentences, source: 'vibe' };
-  } catch (vibeError) {
+    return await first();
+  } catch (firstError) {
     console.warn(
-      'Vibe transcription unavailable; falling back to YouTube captions:',
-      vibeError instanceof Error ? vibeError.message : vibeError
+      `${firstLabel}; falling back to the other transcript source:`,
+      firstError instanceof Error ? firstError.message : firstError
     );
 
     try {
-      const sentences = await captions(videoId);
-      if (!sentences.length) throw new Error('No caption sentences were found.');
-      return { sentences, source: 'captions' };
-    } catch (captionError) {
-      const vibeMessage = vibeError instanceof Error ? vibeError.message : 'unknown error';
-      const captionMessage = captionError instanceof Error ? captionError.message : 'unknown error';
+      return await second();
+    } catch (secondError) {
+      const firstMessage = firstError instanceof Error ? firstError.message : 'unknown error';
+      const secondMessage = secondError instanceof Error ? secondError.message : 'unknown error';
       const status =
-        vibeError instanceof VibeError
-          ? vibeError.status
-          : captionError instanceof YouTubeError
-            ? captionError.status
+        firstError instanceof VibeError || firstError instanceof YouTubeError
+          ? firstError.status
+          : secondError instanceof VibeError || secondError instanceof YouTubeError
+            ? secondError.status
             : 502;
       throw new YouTubeError(
-        `Vibe could not transcribe this video (${vibeMessage}), and YouTube captions are unavailable (${captionMessage}).`,
+        `${captionsFirst ? 'YouTube captions are unavailable' : 'Vibe could not transcribe this video'} (${firstMessage}), and ${captionsFirst ? 'Vibe could not transcribe this video' : 'YouTube captions are unavailable'} (${secondMessage}).`,
         status
       );
     }

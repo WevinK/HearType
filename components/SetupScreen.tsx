@@ -17,6 +17,8 @@ import type {
 
 type Props = {
   onStart: (source: PlayableSource, sentences: Sentence[]) => void;
+  cluePercent: number;
+  onCluePercentChange: (value: number) => void;
 };
 
 type SourceMode = 'file' | 'youtube';
@@ -36,11 +38,12 @@ function isMediaFile(file: File): boolean {
   return MEDIA_EXT.test(file.name);
 }
 
-export default function SetupScreen({ onStart }: Props) {
+export default function SetupScreen({ onStart, cluePercent, onCluePercentChange }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [remote, setRemote] = useState<RemoteMedia | null>(null);
   const [sourceMode, setSourceMode] = useState<SourceMode>('file');
   const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [youtubePreference, setYoutubePreference] = useState<TranscriptSource>('vibe');
   const [status, setStatus] = useState<'idle' | 'processing' | 'ready' | 'error'>('idle');
   const [processingLabel, setProcessingLabel] = useState('Transcribing with Vibe');
   const [sentences, setSentences] = useState<Sentence[]>([]);
@@ -205,14 +208,16 @@ export default function SetupScreen({ onStart }: Props) {
     setSentences([]);
     setError('');
     setElapsed(0);
-    setProcessingLabel('Transcribing with Vibe');
+    setProcessingLabel(
+      youtubePreference === 'captions' ? 'Fetching YouTube captions' : 'Transcribing with Vibe'
+    );
     setStatus('processing');
 
     try {
       const response = await fetch('/api/youtube', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ url: normalized }),
+        body: JSON.stringify({ url: normalized, source: youtubePreference }),
         signal: controller.signal,
       });
       const data = (await response.json().catch(() => ({}))) as Partial<YouTubeResponse> & {
@@ -355,9 +360,9 @@ export default function SetupScreen({ onStart }: Props) {
           Own it.
         </h1>
         <p className="sub">
-          Upload a video, audio file, or YouTube link. Vibe transcribes everything
-          locally; YouTube captions are the fallback. Then you listen and type each
-          sentence, line by line.
+          Upload a video, audio file, or YouTube link. Uploads are transcribed locally
+          with Vibe; YouTube links can use Vibe or English captions. Then you listen
+          and type each sentence, line by line.
         </p>
       </div>
 
@@ -467,7 +472,7 @@ export default function SetupScreen({ onStart }: Props) {
               </div>
               <p className="drop-title">Upload a video or paste a YouTube link</p>
               <p className="drop-sub">
-                Vibe transcribes uploads and YouTube links; captions are the fallback.
+                Uploads use Vibe; YouTube links can use Vibe or English captions.
               </p>
 
               <div className="source-tabs" role="tablist" aria-label="Video source">
@@ -526,9 +531,31 @@ export default function SetupScreen({ onStart }: Props) {
                       Fetch video
                     </button>
                   </div>
+                  <div className="pref-toggle" role="group" aria-label="YouTube transcript source">
+                    <span>Transcript</span>
+                    <button
+                      className={`pref-btn${youtubePreference === 'vibe' ? ' active' : ''}`}
+                      type="button"
+                      aria-pressed={youtubePreference === 'vibe'}
+                      onClick={() => setYoutubePreference('vibe')}
+                    >
+                      Vibe
+                    </button>
+                    <button
+                      className={`pref-btn${youtubePreference === 'captions' ? ' active' : ''}`}
+                      type="button"
+                      aria-pressed={youtubePreference === 'captions'}
+                      onClick={() => setYoutubePreference('captions')}
+                    >
+                      YouTube captions
+                    </button>
+                  </div>
                   <p className="hint">
                     Public YouTube videos up to 1 hour. The video is downloaded locally for
-                    playback and transcribed with Vibe; English captions are the fallback.
+                    playback.{' '}
+                    {youtubePreference === 'vibe'
+                      ? 'Vibe is used first; English captions are the fallback.'
+                      : 'YouTube English captions are used first; Vibe is the fallback.'}
                   </p>
                 </>
               )}
@@ -636,6 +663,20 @@ export default function SetupScreen({ onStart }: Props) {
                 Each sentence needs words before you can start. Fill it in or remove it.
               </p>
             )}
+
+            <label className="clue-control" htmlFor="setupClue">
+              <span>Clue words</span>
+              <input
+                id="setupClue"
+                type="range"
+                min={0}
+                max={100}
+                step={10}
+                value={cluePercent}
+                onChange={(event) => onCluePercentChange(Number(event.target.value))}
+              />
+              <output htmlFor="setupClue">{cluePercent}%</output>
+            </label>
 
             <button
               className="btn btn-primary btn-xl"

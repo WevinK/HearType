@@ -15,6 +15,7 @@ export default function Home() {
   const [sentences, setSentences] = useState<Sentence[]>([]);
   const [results, setResults] = useState<Clip[]>([]);
   const [sessionKey, setSessionKey] = useState(0);
+  const [cluePercent, setCluePercent] = useState(50);
   const mediaUrlRef = useRef<string | null>(null);
   const mediaRevokeRef = useRef(false);
 
@@ -88,7 +89,13 @@ export default function Home() {
       </header>
 
       <main>
-        {screen === 'setup' && <SetupScreen onStart={handleStart} />}
+        {screen === 'setup' && (
+          <SetupScreen
+            onStart={handleStart}
+            cluePercent={cluePercent}
+            onCluePercentChange={setCluePercent}
+          />
+        )}
 
         {screen === 'practice' && media && (
           <PracticeScreen
@@ -96,13 +103,20 @@ export default function Home() {
             mediaUrl={media.url}
             mediaKind={media.kind}
             sentences={sentences}
+            cluePercent={cluePercent}
             onFinish={handleFinish}
             onRestart={handleRestart}
           />
         )}
 
         {screen === 'results' && (
-          <ResultsScreen clips={results} onRestart={handleRestart} onNew={handleNew} />
+          <ResultsScreen
+            clips={results}
+            onRestart={handleRestart}
+            onNew={handleNew}
+            cluePercent={cluePercent}
+            onCluePercentChange={setCluePercent}
+          />
         )}
       </main>
     </>

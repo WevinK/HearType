@@ -9,9 +9,17 @@ type Props = {
   clips: Clip[];
   onRestart: () => void;
   onNew: () => void;
+  cluePercent: number;
+  onCluePercentChange: (value: number) => void;
 };
 
-export default function ResultsScreen({ clips, onRestart, onNew }: Props) {
+export default function ResultsScreen({
+  clips,
+  onRestart,
+  onNew,
+  cluePercent,
+  onCluePercentChange,
+}: Props) {
   const score = scoreSession(clips);
   const titleRef = useRef<HTMLHeadingElement>(null);
 
@@ -105,6 +113,20 @@ export default function ResultsScreen({ clips, onRestart, onNew }: Props) {
           );
         })}
       </ol>
+
+      <label className="clue-control" htmlFor="resultClue">
+        <span>Clue words</span>
+        <input
+          id="resultClue"
+          type="range"
+          min={0}
+          max={100}
+          step={10}
+          value={cluePercent}
+          onChange={(event) => onCluePercentChange(Number(event.target.value))}
+        />
+        <output htmlFor="resultClue">{cluePercent}%</output>
+      </label>
 
       <div className="row result-actions">
         <button className="btn btn-primary" type="button" onClick={onRestart}>

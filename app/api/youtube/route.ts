@@ -3,14 +3,15 @@ import { chooseTranscript } from '@/lib/transcript-source';
 import { fetchYouTubeCaptions } from '@/lib/youtube-captions';
 import { transcribePath, VibeError } from '@/lib/vibe';
 import { downloadYouTube, YouTubeError } from '@/lib/youtube';
+import type { TranscriptSource } from '@/lib/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
-  let body: { url?: unknown };
+  let body: { url?: unknown; source?: unknown };
   try {
-    body = (await request.json()) as { url?: unknown };
+    body = (await request.json()) as { url?: unknown; source?: unknown };
   } catch {
     return NextResponse.json({ error: 'Paste a YouTube video link.' }, { status: 400 });
   }
@@ -19,13 +20,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Paste a YouTube video link.' }, { status: 400 });
   }
 
+  const preference: TranscriptSource = body.source === 'captions' ? 'captions' : 'vibe';
+
   try {
     const video = await downloadYouTube(body.url);
     const { sentences, source } = await chooseTranscript(
       video.id,
       video.filePath,
       transcribePath,
-      fetchYouTubeCaptions
+      fetchYouTubeCaptions,
+      preference
     );
 
     return NextResponse.json({

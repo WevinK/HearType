@@ -180,6 +180,13 @@ test('shows a clip made only of fillers', () => {
   assert.ok(layout.words.every((word) => word.revealed));
 });
 
+test('shows every non-filler word at 100 percent clues', () => {
+  const layout = buildTypingLayout('Hello there.', 1, high);
+
+  assert.equal(layout.hiddenCount, 0);
+  assert.ok(layout.words.every((word) => word.revealed));
+});
+
 test('uses the caret position for the active word', () => {
   const layout = buildTypingLayout('Hello there.', 0.5, high);
   const result = evaluateTyping(layout, 'there', [], 2);

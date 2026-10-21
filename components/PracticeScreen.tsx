@@ -12,6 +12,7 @@ type Props = {
   mediaUrl: string;
   mediaKind: MediaKind;
   sentences: Sentence[];
+  cluePercent: number;
   onFinish: (clips: Clip[]) => void;
   onRestart: () => void;
 };
@@ -62,6 +63,7 @@ export default function PracticeScreen({
   mediaUrl,
   mediaKind,
   sentences,
+  cluePercent,
   onFinish,
   onRestart,
 }: Props) {
@@ -106,10 +108,10 @@ export default function PracticeScreen({
     () =>
       buildTypingLayout(
         current?.text ?? '',
-        0.5,
+        cluePercent / 100,
         seededRandom(current?.revealSeed ?? 0)
       ),
-    [current?.text, current?.revealSeed]
+    [current?.text, current?.revealSeed, cluePercent]
   );
   const fields = useMemo(
     () =>

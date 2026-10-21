@@ -39,6 +39,38 @@ test('falls back to captions when Vibe fails', async () => {
   assert.equal(choice.sentences[0], sentence);
 });
 
+test('uses captions first when requested', async () => {
+  let vibeCalled = false;
+  const choice = await chooseTranscript(
+    'id',
+    'file',
+    async () => {
+      vibeCalled = true;
+      return { sentences: [sentence] };
+    },
+    async () => [sentence],
+    'captions'
+  );
+
+  assert.equal(choice.source, 'captions');
+  assert.equal(vibeCalled, false);
+});
+
+test('falls back to Vibe when captions fail', async () => {
+  const choice = await chooseTranscript(
+    'id',
+    'file',
+    async () => ({ sentences: [sentence] }),
+    async () => {
+      throw new Error('no captions');
+    },
+    'captions'
+  );
+
+  assert.equal(choice.source, 'vibe');
+  assert.equal(choice.sentences[0], sentence);
+});
+
 test('reports both failures with the Vibe status', async () => {
   await assert.rejects(
     chooseTranscript(
