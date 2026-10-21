@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, rename, stat, unlink } from 'node:fs/promises';
 import path from 'node:path';
-import { normalizeYouTubeUrl, VIDEO_ID } from './youtube-url';
+import { normalizeYouTubeUrl, VIDEO_ID } from './youtube-url.ts';
 
 const VIBE_DIR = path.join(process.cwd(), '.vibe');
 export const MEDIA_DIR = path.join(VIBE_DIR, 'media');
