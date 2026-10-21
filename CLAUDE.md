@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-HearType is a local-first English listening drill. The user uploads a video/audio file or pastes a YouTube link (fetched with yt-dlp for playback); uploaded files are transcribed by a local Vibe (whisper.cpp) server; YouTube links use YouTube's English captions when available and fall back to Vibe; the app groups the text into sentences; the learner listens to each sentence from the original media and types it. The app is Next.js 16 (App Router), React 19, and TypeScript. The previous zero-dependency single-file version is archived under `legacy/`.
+HearType is a local-first English listening drill. The user uploads a video/audio file or pastes a YouTube link (fetched with yt-dlp for playback); uploaded files and YouTube links are transcribed by a local Vibe (whisper.cpp) server, with YouTube's English captions as the fallback; the app groups the text into sentences; the learner listens to each sentence from the original media and types it. The app is Next.js 16 (App Router), React 19, and TypeScript. The previous zero-dependency single-file version is archived under `legacy/`.
 
 ## Commands
 

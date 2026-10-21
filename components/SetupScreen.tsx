@@ -166,7 +166,7 @@ export default function SetupScreen({ onStart }: Props) {
     setSentences([]);
     setError('');
     setElapsed(0);
-    setProcessingLabel('Fetching YouTube captions');
+    setProcessingLabel('Transcribing with Vibe');
     setStatus('processing');
 
     try {
@@ -276,8 +276,8 @@ export default function SetupScreen({ onStart }: Props) {
           Own it.
         </h1>
         <p className="sub">
-          Upload a video, audio file, or YouTube link. Vibe handles uploads locally;
-          YouTube links use captions when available. Then you listen and type each
+          Upload a video, audio file, or YouTube link. Vibe transcribes everything
+          locally; YouTube captions are the fallback. Then you listen and type each
           sentence, line by line.
         </p>
       </div>
@@ -368,7 +368,7 @@ export default function SetupScreen({ onStart }: Props) {
               </div>
               <p className="drop-title">Upload a video or paste a YouTube link</p>
               <p className="drop-sub">
-                Vibe transcribes uploads; YouTube links use captions when available.
+                Vibe transcribes uploads and YouTube links; captions are the fallback.
               </p>
 
               <div className="source-tabs" role="tablist" aria-label="Video source">
@@ -429,7 +429,7 @@ export default function SetupScreen({ onStart }: Props) {
                   </div>
                   <p className="hint">
                     Public YouTube videos up to 1 hour. The video is downloaded locally for
-                    playback; English captions are used when available, with Vibe as fallback.
+                    playback and transcribed with Vibe; English captions are the fallback.
                   </p>
                 </>
               )}
