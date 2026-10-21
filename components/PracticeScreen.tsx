@@ -10,7 +10,10 @@ type Props = {
   mediaKind: MediaKind;
   sentences: Sentence[];
   onFinish: (clips: Clip[]) => void;
+  onRestart: () => void;
 };
+
+const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5];
 
 function createClips(sentences: Sentence[]): Clip[] {
   return sentences.map((sentence, index) => ({
@@ -34,6 +37,7 @@ export default function PracticeScreen({
   mediaKind,
   sentences,
   onFinish,
+  onRestart,
 }: Props) {
   const [clips, setClips] = useState<Clip[]>(() => createClips(sentences));
   const clipsRef = useRef(clips);
@@ -54,7 +58,10 @@ export default function PracticeScreen({
   const [countdown, setCountdown] = useState(3);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isAudioUI, setIsAudioUI] = useState(mediaKind === 'audio');
+  const [hideVideo, setHideVideo] = useState(false);
+  const [speed, setSpeed] = useState(1);
   const [showTap, setShowTap] = useState(false);
+  const showAudioStage = isAudioUI || hideVideo;
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -322,6 +329,33 @@ export default function PracticeScreen({
     });
   }
 
+  function clearInput() {
+    if (counting || readOnly) return;
+    const currentIndex = indexRef.current;
+    const clip = clipsRef.current[currentIndex];
+    if (!clip || clip.result !== 'pending') return;
+
+    typedRef.current = '';
+    setTyped('');
+    mistakesRef.current = [];
+    setMistakes([]);
+    updateClips((all) =>
+      all.map((item, i) =>
+        i === currentIndex
+          ? { ...item, typed: '', mistakes: [], answer: '', lastWrong: '' }
+          : item
+      )
+    );
+    setFeedback({ text: '', kind: '' });
+    setAttemptHint(
+      clip.attempts
+        ? `${clip.attempts} wrong ${clip.attempts === 1 ? 'key' : 'keys'}`
+        : 'Type the missing letters'
+    );
+    setShake(false);
+    inputRef.current?.focus({ preventScroll: true });
+  }
+
   function goNext() {
     if (counting) return;
     if (advanceRef.current !== null) {
@@ -421,6 +455,10 @@ export default function PracticeScreen({
   }, [isPlaying]);
 
   useEffect(() => {
+    if (videoRef.current) videoRef.current.playbackRate = speed;
+  }, [speed]);
+
+  useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
@@ -513,7 +551,7 @@ export default function PracticeScreen({
         </span>
       </div>
 
-      <div className={`video-wrap${isAudioUI ? ' audio' : ''}`}>
+      <div className={`video-wrap${showAudioStage ? ' audio' : ''}`}>
         <video
           ref={videoRef}
           src={mediaUrl}
@@ -522,7 +560,7 @@ export default function PracticeScreen({
           onClick={togglePlayback}
         />
 
-        {isAudioUI && (
+        {showAudioStage && (
           <div className="audio-stage" onClick={togglePlayback}>
             <span className="audio-kicker">Listen</span>
             <div className="audio-wave" aria-hidden="true">
@@ -530,7 +568,9 @@ export default function PracticeScreen({
                 <span key={i} />
               ))}
             </div>
-            <p className="audio-speaker">Audio clip</p>
+            <p className="audio-speaker">
+              {hideVideo && !isAudioUI ? 'Audio only' : 'Audio clip'}
+            </p>
           </div>
         )}
 
@@ -648,8 +688,46 @@ export default function PracticeScreen({
         </button>
       </div>
 
+      <div className="play-tools">
+        <label className="speed-control">
+          <span>Speed</span>
+          <select
+            value={speed}
+            onChange={(event) => setSpeed(Number(event.target.value))}
+            aria-label="Playback speed"
+          >
+            {SPEEDS.map((value) => (
+              <option key={value} value={value}>
+                {value}×
+              </option>
+            ))}
+          </select>
+        </label>
+        {!isAudioUI && (
+          <button
+            className={`tool-btn${hideVideo ? ' active' : ''}`}
+            type="button"
+            aria-pressed={hideVideo}
+            title={hideVideo ? 'Show the video' : 'Hide the video and show audio only'}
+            onClick={() => setHideVideo((value) => !value)}
+          >
+            {hideVideo ? 'Show video' : 'Audio only'}
+          </button>
+        )}
+      </div>
+
       <div className="answer">
-        <label htmlFor="answerInput">Type the missing letters</label>
+        <div className="answer-head">
+          <label htmlFor="answerInput">Type the missing letters</label>
+          <button
+            className="clear-btn"
+            type="button"
+            onClick={clearInput}
+            disabled={counting || readOnly || !typed}
+          >
+            Clear input
+          </button>
+        </div>
         <div className={`typing-shell${shake ? ' shake' : ''}`}>
           <div className="typing-display" aria-hidden="true">
             {evaluation.words.map((word, wordIndex) => (
@@ -697,9 +775,14 @@ export default function PracticeScreen({
         </div>
       </div>
 
-      <button className="link-btn" type="button" onClick={endSession}>
-        End session
-      </button>
+      <div className="session-actions">
+        <button className="link-btn" type="button" onClick={onRestart}>
+          Start from beginning
+        </button>
+        <button className="link-btn" type="button" onClick={endSession}>
+          End session
+        </button>
+      </div>
     </section>
   );
 }

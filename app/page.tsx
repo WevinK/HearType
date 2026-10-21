@@ -97,6 +97,7 @@ export default function Home() {
             mediaKind={media.kind}
             sentences={sentences}
             onFinish={handleFinish}
+            onRestart={handleRestart}
           />
         )}
 

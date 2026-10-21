@@ -400,16 +400,55 @@
   }
   .play-btn:hover:not(:disabled) { background: linear-gradient(120deg, var(--accent), var(--sky)); filter: brightness(1.07); }
 
+  .play-tools {
+    display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
+    gap: 10px; margin: -6px 0 16px;
+  }
+  .speed-control {
+    display: inline-flex; align-items: center; gap: 7px;
+    color: var(--muted); font-size: 0.76rem;
+  }
+  .speed-control select {
+    font: inherit; font-size: 0.78rem; color: var(--text);
+    background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line);
+    border-radius: 999px; padding: 6px 9px; cursor: pointer;
+  }
+  .speed-control select:focus { outline: none; border-color: var(--accent); }
+  .tool-btn {
+    font: inherit; font-size: 0.76rem; font-weight: 600; color: var(--muted);
+    background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line);
+    border-radius: 999px; padding: 7px 12px; cursor: pointer;
+    transition: color 0.16s, background 0.16s, border-color 0.16s;
+  }
+  .tool-btn:hover { color: var(--text); background: rgba(255, 255, 255, 0.09); }
+  .tool-btn.active {
+    color: #06211d; background: linear-gradient(120deg, var(--accent), var(--sky));
+    border-color: transparent;
+  }
+
   .answer {
     padding: 18px 20px 15px;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
     border: 1px solid var(--line); border-radius: 20px;
+  }
+  .answer-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin-bottom: 9px;
   }
   .answer label {
     display: block; margin-bottom: 9px;
     font-size: 0.7rem; font-weight: 650; letter-spacing: 0.18em;
     text-transform: uppercase; color: var(--muted);
   }
+  .answer-head label { margin-bottom: 0; }
+  .clear-btn {
+    font: inherit; font-size: 0.7rem; font-weight: 600; color: var(--muted);
+    background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line);
+    border-radius: 999px; padding: 5px 10px; cursor: pointer;
+    transition: color 0.16s, background 0.16s, opacity 0.16s;
+  }
+  .clear-btn:hover:not(:disabled) { color: var(--text); background: rgba(255, 255, 255, 0.09); }
+  .clear-btn:disabled { opacity: 0.35; cursor: default; }
   .typing-shell {
     position: relative;
     padding: 4px 2px 10px;
@@ -480,6 +519,11 @@
     transition: color 0.16s;
   }
   .link-btn:hover { color: var(--text); }
+  .session-actions {
+    display: flex; align-items: center; justify-content: center;
+    flex-wrap: wrap; gap: 22px; margin-top: 18px;
+  }
+  .session-actions .link-btn { margin: 0; }
 
   /* ---------- results ---------- */
   .results { padding-top: 14px; }
