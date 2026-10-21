@@ -88,4 +88,4 @@ The legacy app is kept for reference and has its own sample pack in `legacy/Vide
 - `vibe-server` handles one transcription at a time; concurrent requests receive a busy response.
 - Transcription quality depends on the model and the source audio. `ggml-base.en.bin` is a good balance for English speech; you can point `VIBE_MODEL_PATH` at another compatible model.
 - Sessions and uploaded files are not persisted. A refresh starts clean.
-- Each spoken Whisper segment becomes an editable sentence clip; timestamps come from Whisper.
+- Whisper segments are merged into editable sentence clips; timestamps come from Whisper.
