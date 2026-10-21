@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
 import { addedWrongSlots, buildTypingLayout, evaluateTyping, seededRandom } from '@/lib/typing';
-import type { Clip, MediaKind, Sentence } from '@/lib/types';
+import { activeWordIndex, resolveWordTimings } from '@/lib/word-timing';
+import type { Clip, MediaKind, Sentence, SentenceWord } from '@/lib/types';
 
 type Props = {
   mediaUrl: string;
@@ -67,6 +68,8 @@ export default function PracticeScreen({
   const inputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<AudioContext | null>(null);
   const shakeRef = useRef<number | null>(null);
+  const [spokenWord, setSpokenWord] = useState(-1);
+  const spokenWordRef = useRef(-1);
 
   const current = clips[index];
   const layout = useMemo(
@@ -82,6 +85,15 @@ export default function PracticeScreen({
     () => evaluateTyping(layout, typed, mistakes),
     [layout, typed, mistakes]
   );
+  const wordTimings = useMemo(
+    () => (current ? resolveWordTimings(current) : []),
+    [current?.text, current?.start, current?.end, current?.words]
+  );
+  const wordTimingsRef = useRef<SentenceWord[]>(wordTimings);
+
+  useEffect(() => {
+    wordTimingsRef.current = wordTimings;
+  }, [wordTimings]);
 
   useEffect(() => {
     clipsRef.current = clips;
@@ -119,6 +131,9 @@ export default function PracticeScreen({
       indexRef.current = nextIndex;
       setClips(nextClips);
       setIndex(nextIndex);
+      wordTimingsRef.current = resolveWordTimings(currentClip);
+      spokenWordRef.current = -1;
+      setSpokenWord(-1);
 
       setTyped(currentClip.typed);
       typedRef.current = currentClip.typed;
@@ -463,6 +478,12 @@ export default function PracticeScreen({
     let frame = 0;
 
     const tick = () => {
+      const nextWord = activeWordIndex(wordTimingsRef.current, video.currentTime);
+      if (nextWord !== spokenWordRef.current) {
+        spokenWordRef.current = nextWord;
+        setSpokenWord(nextWord);
+      }
+
       const clip = clipRef.current;
       if (clip && !video.paused && video.currentTime >= clip.end) {
         video.pause();
@@ -703,7 +724,9 @@ export default function PracticeScreen({
             {evaluation.words.map((word, wordIndex) => (
               <span
                 key={wordIndex}
-                className={`typing-word ${word.state}${word.active ? ' active' : ''}`}
+                className={`typing-word ${word.state}${word.active ? ' active' : ''}${
+                  wordIndex === spokenWord ? ' spoken' : ''
+                }`}
               >
                 {word.chars.map((char, charIndex) => (
                   <span key={charIndex} className={`typing-char ${char.state}`}>

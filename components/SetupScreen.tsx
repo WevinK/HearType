@@ -228,7 +228,9 @@ export default function SetupScreen({ onStart }: Props) {
 
   function updateSentence(index: number, text: string) {
     setSentences((current) =>
-      current.map((sentence, i) => (i === index ? { ...sentence, text } : sentence))
+      current.map((sentence, i) =>
+        i === index ? { ...sentence, text, words: undefined } : sentence
+      )
     );
   }
 

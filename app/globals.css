@@ -477,6 +477,11 @@
   .typing-word.correct { --word-color: var(--good); }
   .typing-word.fixed { --word-color: var(--warn); }
   .typing-word.wrong { --word-color: var(--bad); }
+  .typing-word.spoken {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 8%, transparent);
+    border-radius: 5px;
+  }
   .typing-word.active .typing-char.blank { border-bottom-color: var(--accent); }
   .typing-char {
     display: inline-block; min-width: 0.62em; text-align: center;
