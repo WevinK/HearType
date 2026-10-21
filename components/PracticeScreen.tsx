@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
+import { formatTime } from '@/lib/listening';
 import { addedWrongSlots, buildTypingLayout, evaluateTyping, seededRandom } from '@/lib/typing';
 import { activeWordIndex, resolveWordTimings } from '@/lib/word-timing';
 import type { Clip, MediaKind, Sentence, SentenceWord } from '@/lib/types';
@@ -61,6 +62,8 @@ export default function PracticeScreen({
   const [isAudioUI, setIsAudioUI] = useState(mediaKind === 'audio');
   const [hideVideo, setHideVideo] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [volume, setVolume] = useState(1);
   const [showTap, setShowTap] = useState(false);
   const showAudioStage = isAudioUI || hideVideo;
 
@@ -160,6 +163,23 @@ export default function PracticeScreen({
     },
     [seekAndPlay]
   );
+
+  function seekWithinClip(value: number) {
+    const video = videoRef.current;
+    const clip = clipRef.current;
+    if (!video || !clip) return;
+
+    const target = Math.min(clip.end, Math.max(clip.start, clip.start + value));
+    try {
+      video.currentTime = target;
+    } catch {
+      // Metadata is not ready yet; the browser will keep the seek queued.
+    }
+    setCurrentTime(target);
+    const nextWord = activeWordIndex(wordTimingsRef.current, target);
+    spokenWordRef.current = nextWord;
+    setSpokenWord(nextWord);
+  }
 
   const finish = useCallback(() => {
     videoRef.current?.pause();
@@ -445,6 +465,10 @@ export default function PracticeScreen({
   }, [speed]);
 
   useEffect(() => {
+    if (videoRef.current) videoRef.current.volume = volume;
+  }, [volume]);
+
+  useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
@@ -455,6 +479,7 @@ export default function PracticeScreen({
     const onPause = () => setIsPlaying(false);
     const onEnded = () => setIsPlaying(false);
     const onMetadata = () => setIsAudioUI(video.videoWidth === 0);
+    const onTimeUpdate = () => setCurrentTime(video.currentTime);
     const onError = () =>
       setFeedback({ text: 'This browser could not play that file.', kind: 'bad' });
 
@@ -462,12 +487,14 @@ export default function PracticeScreen({
     video.addEventListener('pause', onPause);
     video.addEventListener('ended', onEnded);
     video.addEventListener('loadedmetadata', onMetadata);
+    video.addEventListener('timeupdate', onTimeUpdate);
     video.addEventListener('error', onError);
     return () => {
       video.removeEventListener('play', onPlay);
       video.removeEventListener('pause', onPause);
       video.removeEventListener('ended', onEnded);
       video.removeEventListener('loadedmetadata', onMetadata);
+      video.removeEventListener('timeupdate', onTimeUpdate);
       video.removeEventListener('error', onError);
     };
   }, []);
@@ -523,6 +550,8 @@ export default function PracticeScreen({
 
   const liveScore = clips.filter((clip) => clip.result === 'correct').length;
   const progress = (index + 1) / clips.length * 100;
+  const clipDuration = current.end - current.start;
+  const clipTime = Math.max(0, Math.min(currentTime - current.start, clipDuration));
 
   return (
     <section className="screen play">
@@ -581,11 +610,128 @@ export default function PracticeScreen({
             </div>
           </div>
         )}
+
+        <div className="player-bar">
+          <button
+            className="icon-btn play-btn"
+            type="button"
+            aria-label={isPlaying ? 'Pause' : 'Play'}
+            title={isPlaying ? 'Pause' : 'Play'}
+            disabled={counting}
+            onClick={togglePlayback}
+          >
+            {isPlaying ? (
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+                <rect x="6" y="5" width="4" height="14" rx="1.2" />
+                <rect x="14" y="5" width="4" height="14" rx="1.2" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+                <path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l10.2-6.86a1 1 0 0 0 0-1.7L9.53 4.3A1 1 0 0 0 8 5.14z" />
+              </svg>
+            )}
+          </button>
+
+          <button
+            className="icon-btn"
+            type="button"
+            aria-label="Repeat sentence"
+            title="Repeat sentence"
+            disabled={counting}
+            onClick={repeat}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m17 2 4 4-4 4" />
+              <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+              <path d="m7 22-4-4 4-4" />
+              <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+            </svg>
+          </button>
+
+          <span className="player-time">
+            {formatTime(clipTime)} / {formatTime(clipDuration)}
+          </span>
+
+          <input
+            className="seek-bar"
+            type="range"
+            min={0}
+            max={clipDuration}
+            step={0.1}
+            value={clipTime}
+            onChange={(event) => seekWithinClip(Number(event.target.value))}
+            disabled={counting || clipDuration <= 0}
+            aria-label="Seek within sentence"
+          />
+
+          <label className="volume-control">
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M11 5 6 9H3v6h3l5 4V5z" />
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+              <path d="M18.36 5.64a9 9 0 0 1 0 12.72" />
+            </svg>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={volume}
+              onChange={(event) => setVolume(Number(event.target.value))}
+              aria-label="Volume"
+            />
+          </label>
+
+          <label className="speed-control">
+            <select
+              value={speed}
+              onChange={(event) => setSpeed(Number(event.target.value))}
+              aria-label="Playback speed"
+            >
+              {SPEEDS.map((value) => (
+                <option key={value} value={value}>
+                  {value}×
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {!isAudioUI && (
+            <button
+              className={`tool-btn${hideVideo ? ' active' : ''}`}
+              type="button"
+              aria-pressed={hideVideo}
+              title={hideVideo ? 'Show the video' : 'Hide the video and show audio only'}
+              onClick={() => setHideVideo((value) => !value)}
+            >
+              {hideVideo ? 'Show video' : 'Audio only'}
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="transport">
+      <div className="answer-row">
         <button
-          className="icon-btn"
+          className="icon-btn answer-nav"
           type="button"
           aria-label="Previous sentence"
           title="Previous sentence"
@@ -607,105 +753,6 @@ export default function PracticeScreen({
             <path d="M5 19V5" />
           </svg>
         </button>
-
-        <button
-          className="icon-btn"
-          type="button"
-          aria-label="Repeat sentence"
-          title="Repeat sentence"
-          disabled={counting}
-          onClick={repeat}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="20"
-            height="20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="m17 2 4 4-4 4" />
-            <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
-            <path d="m7 22-4-4 4-4" />
-            <path d="M21 13v1a4 4 0 0 1-4 4H3" />
-          </svg>
-        </button>
-
-        <button
-          className="icon-btn play-btn"
-          type="button"
-          aria-label={isPlaying ? 'Pause' : 'Play'}
-          title={isPlaying ? 'Pause' : 'Play'}
-          disabled={counting}
-          onClick={togglePlayback}
-        >
-          {isPlaying ? (
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
-              <rect x="6" y="5" width="4" height="14" rx="1.2" />
-              <rect x="14" y="5" width="4" height="14" rx="1.2" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
-              <path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l10.2-6.86a1 1 0 0 0 0-1.7L9.53 4.3A1 1 0 0 0 8 5.14z" />
-            </svg>
-          )}
-        </button>
-
-        <button
-          className="icon-btn"
-          type="button"
-          aria-label="Next sentence"
-          title="Next sentence"
-          disabled={counting}
-          onClick={goNext}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="20"
-            height="20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="m5 4 10 8-10 8" />
-            <path d="M19 5v14" />
-          </svg>
-        </button>
-      </div>
-
-      <div className="play-tools">
-        <label className="speed-control">
-          <span>Speed</span>
-          <select
-            value={speed}
-            onChange={(event) => setSpeed(Number(event.target.value))}
-            aria-label="Playback speed"
-          >
-            {SPEEDS.map((value) => (
-              <option key={value} value={value}>
-                {value}×
-              </option>
-            ))}
-          </select>
-        </label>
-        {!isAudioUI && (
-          <button
-            className={`tool-btn${hideVideo ? ' active' : ''}`}
-            type="button"
-            aria-pressed={hideVideo}
-            title={hideVideo ? 'Show the video' : 'Hide the video and show audio only'}
-            onClick={() => setHideVideo((value) => !value)}
-          >
-            {hideVideo ? 'Show video' : 'Audio only'}
-          </button>
-        )}
-      </div>
 
       <div className="answer">
         <div className="answer-head">
@@ -771,6 +818,31 @@ export default function PracticeScreen({
             {index >= clips.length - 1 ? 'See results' : 'Continue'}
           </button>
         )}
+      </div>
+
+        <button
+          className="icon-btn answer-nav"
+          type="button"
+          aria-label="Next sentence"
+          title="Next sentence"
+          disabled={counting}
+          onClick={goNext}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="20"
+            height="20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="m5 4 10 8-10 8" />
+            <path d="M19 5v14" />
+          </svg>
+        </button>
       </div>
 
       <div className="session-actions">

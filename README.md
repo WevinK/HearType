@@ -11,7 +11,7 @@ Everything runs on your machine. No audio or video is sent to a cloud service.
 - **Upload or link** — choose a video/audio file (up to 500 MB), or paste a public YouTube link. YouTube videos are fetched with `yt-dlp` (the same downloader the Vibe desktop app uses) and cached in `.vibe/media/` for playback.
 - **Get the text** — uploaded files and YouTube links are transcribed by the local `vibe-server` and Whisper. If Vibe fails on a YouTube link, YouTube's English captions are used instead. Whisper word segments and caption cues are grouped into sentence-sized clips.
 - **Review** — fix any transcription mistakes, remove bad lines, then start.
-- **Practice** — the media is served locally with HTTP range requests and plays one sentence at a time by seeking to its timestamps. The word being spoken is highlighted in the typing display, and a hidden word glows only as its blank slots. A random half of the sentence's words are shown in full; the other words appear as underlined character slots. Every key is checked: a wrong key buzzes and its slot turns red; spaces and punctuation fill themselves; completed words turn green when clean, yellow when corrected, or red when a wrong letter remains. A correct sentence shows a Continue button; press Enter or click it to move on. Use the speed selector (0.5–1.5×), the Audio only toggle to hide the video and show the audio wave, Clear input to retype the sentence, and Start from beginning to reset the session.
+- **Practice** — the media is served locally with HTTP range requests and plays one sentence at a time by seeking to its timestamps. The word being spoken is highlighted in the typing display, and a hidden word glows only as its blank slots. Controls sit inside the video: play/pause, a seek slider for the current sentence, volume, speed, repeat, and Audio only. Previous and Next flank the typing card. A random half of the sentence's words are shown in full; the other words appear as underlined character slots. Every key is checked: a wrong key buzzes and its slot turns red; spaces and punctuation fill themselves; completed words turn green when clean, yellow when corrected, or red when a wrong letter remains. A correct sentence shows a Continue button; press Enter or click it to move on. Use the speed selector (0.5–1.5×), the Audio only toggle to hide the video and show the audio wave, Clear input to retype the sentence, and Start from beginning to reset the session.
 - **Review the session** — accuracy, first-try count, missed sentences, wrong keys, and a sentence-by-sentence breakdown.
 
 ## Requirements
@@ -50,7 +50,7 @@ This app is designed to run locally because it starts a native Vibe process. It 
 | `npm run dev` | Start Next.js on 127.0.0.1:3100 |
 | `npm run build` | Production build |
 | `npm run start` | Start the production server on 127.0.0.1:3100 |
-| `npm test` | Run sentence, scoring, YouTube URL, caption, typing, range, and legacy tests |
+| `npm test` | Run sentence, scoring, YouTube URL, caption, typing, range, and word timing tests |
 | `npm run typecheck` | Run TypeScript with no emit |
 | `npm run setup:vibe` | Download vibe-server, ffmpeg, and the model into `.vibe/` |
 
