@@ -6,10 +6,19 @@ type RawSegment = {
   text?: unknown;
 };
 
+type RawCaptionCue = {
+  text?: unknown;
+  offset?: unknown;
+  duration?: unknown;
+};
+
 const SPEAKER_PREFIX = /^[-–—]\s+/;
 const ENDS_SENTENCE = /[.!?]["'”’)\]]*$/;
 const MAX_MERGED_SECONDS = 20;
 const MAX_MERGED_CHARS = 240;
+const MAX_CAPTION_SECONDS = 15;
+const MAX_CAPTION_CHARS = 240;
+const CAPTION_GAP_SECONDS = 1.2;
 
 function cleanText(text: string): string {
   return text
@@ -72,6 +81,71 @@ export function buildSentences(segments: unknown): Sentence[] {
     } else {
       sentences.push(current);
       current = { start: segment.start, end: segment.end, text: segment.text };
+    }
+  }
+
+  if (current) sentences.push(current);
+  return sentences;
+}
+
+/**
+ * YouTube caption cues are short fragments, often without punctuation. Group
+ * them by pauses and length. The package returns milliseconds for srv3 tracks
+ * and seconds for classic tracks, so infer the unit from the cue durations.
+ */
+export function buildCaptionSentences(cues: unknown): Sentence[] {
+  if (!Array.isArray(cues)) return [];
+
+  const rows: Array<{ text: string; offset: number; duration: number }> = [];
+  for (const raw of cues) {
+    if (!raw || typeof raw !== 'object') continue;
+    const cue = raw as RawCaptionCue;
+    const offset = Number(cue.offset);
+    const duration = Number(cue.duration);
+    if (!Number.isFinite(offset) || !Number.isFinite(duration)) continue;
+    if (offset < 0 || duration <= 0) continue;
+
+    const text = cleanText(typeof cue.text === 'string' ? cue.text : '');
+    if (!text) continue;
+    rows.push({ text, offset, duration });
+  }
+  if (!rows.length) return [];
+
+  const durations = rows.map((row) => row.duration).sort((a, b) => a - b);
+  const medianDuration = durations[Math.floor(durations.length / 2)];
+  const scale = medianDuration > 100 ? 0.001 : 1;
+
+  const prepared = rows
+    .map((row) => ({
+      start: row.offset * scale,
+      end: (row.offset + row.duration) * scale,
+      text: row.text,
+    }))
+    .filter((cue) => cue.end > cue.start + 0.05);
+
+  const sentences: Sentence[] = [];
+  let current: Sentence | null = null;
+
+  for (const cue of prepared) {
+    if (!current) {
+      current = { ...cue };
+      continue;
+    }
+
+    const canMerge =
+      !ENDS_SENTENCE.test(current.text) &&
+      cue.start - current.end <= CAPTION_GAP_SECONDS &&
+      cue.end - current.start <= MAX_CAPTION_SECONDS &&
+      current.text.length + cue.text.length + 1 <= MAX_CAPTION_CHARS;
+
+    if (canMerge) {
+      current.text += ' ' + cue.text;
+      current.end = Math.max(current.end, cue.end);
+    } else {
+      // Caption display windows overlap; end the old clip where the new one starts.
+      if (cue.start > current.start && current.end > cue.start) current.end = cue.start;
+      sentences.push(current);
+      current = { ...cue };
     }
   }
 

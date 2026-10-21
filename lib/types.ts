@@ -22,10 +22,13 @@ export type TranscribeResponse = {
   sentences: Sentence[];
 };
 
+export type TranscriptSource = 'captions' | 'vibe';
+
 export type YouTubeResponse = TranscribeResponse & {
   title: string;
   duration: number;
   mediaUrl: string;
+  source: TranscriptSource;
 };
 
 export type PlayableSource =

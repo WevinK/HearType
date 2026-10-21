@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
+import { fetchYouTubeCaptions } from '@/lib/youtube-captions';
 import { transcribePath, VibeError } from '@/lib/vibe';
 import { downloadYouTube, YouTubeError } from '@/lib/youtube';
+import type { Sentence, TranscriptSource } from '@/lib/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -19,14 +21,33 @@ export async function POST(request: Request) {
 
   try {
     const video = await downloadYouTube(body.url);
-    const transcription = await transcribePath(video.filePath);
+
+    let text: string;
+    let sentences: Sentence[];
+    let source: TranscriptSource;
+    try {
+      sentences = await fetchYouTubeCaptions(video.id);
+      if (!sentences.length) throw new Error('No caption sentences were found.');
+      text = sentences.map((sentence) => sentence.text).join(' ');
+      source = 'captions';
+    } catch (error) {
+      console.warn(
+        'YouTube captions unavailable; falling back to Vibe:',
+        error instanceof Error ? error.message : error
+      );
+      const transcription = await transcribePath(video.filePath);
+      text = transcription.text;
+      sentences = transcription.sentences;
+      source = 'vibe';
+    }
 
     return NextResponse.json({
       title: video.title,
       duration: video.duration,
       mediaUrl: `/api/media/${video.id}`,
-      text: transcription.text,
-      sentences: transcription.sentences,
+      source,
+      text,
+      sentences,
     });
   } catch (error) {
     const status =

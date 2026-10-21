@@ -9,6 +9,7 @@ import type {
   PlayableSource,
   Sentence,
   TranscribeResponse,
+  TranscriptSource,
   YouTubeResponse,
 } from '@/lib/types';
 
@@ -17,7 +18,7 @@ type Props = {
 };
 
 type SourceMode = 'file' | 'youtube';
-type RemoteMedia = { url: string; title: string };
+type RemoteMedia = { url: string; title: string; source: TranscriptSource };
 
 const MAX_UPLOAD_MB = 500;
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
@@ -170,7 +171,7 @@ export default function SetupScreen({ onStart }: Props) {
     setSentences([]);
     setError('');
     setElapsed(0);
-    setProcessingLabel('Fetching & transcribing with Vibe');
+    setProcessingLabel('Fetching YouTube captions');
     setStatus('processing');
 
     try {
@@ -194,6 +195,7 @@ export default function SetupScreen({ onStart }: Props) {
       setRemote({
         url: data.mediaUrl,
         title: data.title?.trim() || 'YouTube video',
+        source: data.source === 'vibe' ? 'vibe' : 'captions',
       });
       setSentences(data.sentences);
       setStatus('ready');
@@ -277,8 +279,9 @@ export default function SetupScreen({ onStart }: Props) {
           Own it.
         </h1>
         <p className="sub">
-          Upload a video, audio file, or YouTube link. Vibe transcribes the speech
-          locally, then you listen and type each sentence, line by line.
+          Upload a video, audio file, or YouTube link. Vibe handles uploads locally;
+          YouTube links use captions when available. Then you listen and type each
+          sentence, line by line.
         </p>
       </div>
 
@@ -368,7 +371,7 @@ export default function SetupScreen({ onStart }: Props) {
               </div>
               <p className="drop-title">Upload a video or paste a YouTube link</p>
               <p className="drop-sub">
-                Vibe turns the speech into sentences you can practice.
+                Vibe transcribes uploads; YouTube links use captions when available.
               </p>
 
               <div className="source-tabs" role="tablist" aria-label="Video source">
@@ -427,8 +430,8 @@ export default function SetupScreen({ onStart }: Props) {
                     </button>
                   </div>
                   <p className="hint">
-                    Public YouTube videos up to 1 hour. The video is downloaded locally,
-                    then Vibe transcribes it.
+                    Public YouTube videos up to 1 hour. The video is downloaded locally for
+                    playback; English captions are used when available, with Vibe as fallback.
                   </p>
                 </>
               )}
@@ -448,7 +451,13 @@ export default function SetupScreen({ onStart }: Props) {
                 {remote?.title ?? file?.name}
               </span>
               <span className="file-size">
-                {remote ? 'Downloaded locally' : file ? formatBytes(file.size) : ''}
+                {remote
+                  ? remote.source === 'vibe'
+                    ? 'Vibe transcript'
+                    : 'YouTube captions'
+                  : file
+                    ? formatBytes(file.size)
+                    : ''}
               </span>
             </div>
             <button className="btn btn-ghost btn-sm" type="button" onClick={resetToIdle}>

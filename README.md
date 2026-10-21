@@ -2,14 +2,14 @@
 
 English listening practice built from your own videos.
 
-Upload a clip or paste a public YouTube link. [Vibe](https://thewh1teagle.github.io/vibe/) transcribes the speech locally into sentences. Then you listen to each sentence and type it. A correct answer advances automatically, and the final screen shows exactly what you missed.
+Upload a clip or paste a public YouTube link. [Vibe](https://thewh1teagle.github.io/vibe/) transcribes uploaded files locally. YouTube links use YouTube's English captions when available, with Vibe as a fallback; the video is downloaded locally for playback. Then you listen to each sentence and type it. A correct answer advances automatically, and the final screen shows exactly what you missed.
 
 Everything runs on your machine. No audio or video is sent to a cloud service.
 
 ## How it works
 
-- **Upload or link** — choose a video/audio file (up to 500 MB), or paste a public YouTube link. Vibe's transcription server only accepts files, so YouTube videos are fetched with `yt-dlp` (the same downloader the Vibe desktop app uses) and cached in `.vibe/media/`.
-- **Transcribe** — the Next.js API starts a local `vibe-server`, loads a Whisper model, and asks it for timestamped segments. Adjacent segments are joined into sentence-sized clips.
+- **Upload or link** — choose a video/audio file (up to 500 MB), or paste a public YouTube link. YouTube videos are fetched with `yt-dlp` (the same downloader the Vibe desktop app uses) and cached in `.vibe/media/` for playback.
+- **Get the text** — uploaded files are transcribed by the local `vibe-server` and Whisper. YouTube links use YouTube's English captions when available; if captions are missing, Vibe transcribes the downloaded media. Caption cues are grouped into sentence-sized clips.
 - **Review** — fix any transcription mistakes, remove bad lines, then start.
 - **Practice** — the media is served locally with HTTP range requests and plays one sentence at a time by seeking to its timestamps. Type what you hear; punctuation and capitalisation are ignored. A correct answer moves on after 700 ms.
 - **Review the session** — accuracy, first-try count, missed sentences, wrong tries, and a sentence-by-sentence breakdown.
@@ -50,7 +50,7 @@ This app is designed to run locally because it starts a native Vibe process. It 
 | `npm run dev` | Start Next.js on port 3100 |
 | `npm run build` | Production build |
 | `npm run start` | Start the production server on port 3100 |
-| `npm test` | Run sentence, scoring, and legacy tests |
+| `npm test` | Run sentence, scoring, YouTube URL, caption, and legacy tests |
 | `npm run typecheck` | Run TypeScript with no emit |
 | `npm run setup:vibe` | Download vibe-server, ffmpeg, and the model into `.vibe/` |
 
@@ -76,16 +76,17 @@ The setup script can target another server release with `VIBE_SERVER_VERSION` (f
 
 ```
 app/                 Next.js App Router pages, styles, and API routes
-app/api/youtube/     YouTube download + transcription endpoint
+app/api/youtube/     YouTube download + caption/transcription endpoint
 app/api/media/[id]/  Range-enabled local media streaming
 components/          Setup, practice, and results screens
 lib/vibe.ts          Server-only Vibe process management and transcription
 lib/youtube.ts       yt-dlp download, validation, caching, and cleanup
+lib/youtube-captions.ts YouTube caption fetch and grouping boundary
 lib/youtube-url.ts   YouTube URL allowlist/normalisation
 lib/sentences.ts     Whisper segment → sentence grouping
 lib/listening.ts     Matching, scoring, and time formatting
 scripts/setup-vibe.mjs
-test/                Sentence, scoring, YouTube URL, and legacy parser tests
+test/                Sentence, scoring, YouTube URL, caption, and legacy parser tests
 legacy/              Previous zero-dependency single-file version (reference only)
 ```
 
@@ -95,7 +96,7 @@ The legacy app is kept for reference and has its own sample pack in `legacy/Vide
 
 - `vibe-server` handles one transcription at a time; concurrent requests receive a busy response.
 - Transcription quality depends on the model and the source audio. `ggml-base.en.bin` is a good balance for English speech; you can point `VIBE_MODEL_PATH` at another compatible model.
-- YouTube videos are limited to 60 minutes and 500 MB, and live streams/playlists are rejected. Downloaded files are cached in `.vibe/media/` for 24 hours.
+- YouTube videos are limited to 60 minutes and 500 MB, and live streams/playlists are rejected. English captions are fetched from YouTube when available; if they are missing, the downloaded media is transcribed with Vibe. Downloaded files are cached in `.vibe/media/` for 24 hours.
 - Only download or transcribe content you have the rights to use.
 - Sessions and uploaded files are not persisted. A refresh starts clean.
 - Whisper segments are merged into editable sentence clips; timestamps come from Whisper.
