@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
 import { formatTime } from '@/lib/listening';
+import { clipPlaybackEnd } from '@/lib/playback';
 import { addedWrongSlots, buildTypingLayout, evaluateTyping, seededRandom } from '@/lib/typing';
 import { activeWordIndex, resolveWordTimings } from '@/lib/word-timing';
 import type { Clip, MediaKind, Sentence, SentenceWord } from '@/lib/types';
@@ -63,6 +64,7 @@ export default function PracticeScreen({
   const [hideVideo, setHideVideo] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [currentTime, setCurrentTime] = useState(0);
+  const [mediaDuration, setMediaDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [showTap, setShowTap] = useState(false);
   const showAudioStage = isAudioUI || hideVideo;
@@ -166,7 +168,10 @@ export default function PracticeScreen({
     const clip = clipRef.current;
     if (!video || !clip) return;
 
-    const target = Math.min(clip.end, Math.max(clip.start, clip.start + value));
+    const target = Math.min(
+      clipPlaybackEnd(clip, video.duration),
+      Math.max(clip.start, clip.start + value)
+    );
     try {
       video.currentTime = target;
     } catch {
@@ -413,7 +418,10 @@ export default function PracticeScreen({
     if (!video || !clip) return;
 
     if (video.paused) {
-      if (video.currentTime >= clip.end - 0.05 || video.currentTime < clip.start - 0.05) {
+      if (
+        video.currentTime >= clipPlaybackEnd(clip, video.duration) - 0.05 ||
+        video.currentTime < clip.start - 0.05
+      ) {
         seekAndPlay(clip.start);
       } else {
         const attempt = video.play();
@@ -477,7 +485,10 @@ export default function PracticeScreen({
     };
     const onPause = () => setIsPlaying(false);
     const onEnded = () => setIsPlaying(false);
-    const onMetadata = () => setIsAudioUI(video.videoWidth === 0);
+    const onMetadata = () => {
+      setIsAudioUI(video.videoWidth === 0);
+      setMediaDuration(Number.isFinite(video.duration) ? video.duration : 0);
+    };
     const onTimeUpdate = () => setCurrentTime(video.currentTime);
     const onError = () =>
       setFeedback({ text: 'This browser could not play that file.', kind: 'bad' });
@@ -511,7 +522,7 @@ export default function PracticeScreen({
       }
 
       const clip = clipRef.current;
-      if (clip && !video.paused && video.currentTime >= clip.end) {
+      if (clip && !video.paused && video.currentTime >= clipPlaybackEnd(clip, video.duration)) {
         video.pause();
         try {
           video.currentTime = clip.start;
@@ -549,7 +560,7 @@ export default function PracticeScreen({
 
   const liveScore = clips.filter((clip) => clip.result === 'correct').length;
   const progress = (index + 1) / clips.length * 100;
-  const clipDuration = current.end - current.start;
+  const clipDuration = clipPlaybackEnd(current, mediaDuration) - current.start;
   const clipTime = Math.max(0, Math.min(currentTime - current.start, clipDuration));
 
   return (
