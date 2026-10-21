@@ -52,7 +52,7 @@ export function seededRandom(seed: number): () => number {
 
 /**
  * Split a sentence into whole-word clues and whole-word blanks. A random
- * 50% of the words (at least one word stays blank) are shown in full.
+ * 50% of the typeable words (at least one stays blank) are shown in full.
  */
 export function buildTypingLayout(
   text: string,
@@ -60,12 +60,15 @@ export function buildTypingLayout(
   random: () => number = Math.random
 ): TypingLayout {
   const wordTexts = text.trim().split(/\s+/).filter(Boolean);
+  const typeableWords = wordTexts
+    .map((word, index) => (Array.from(word).some((char) => TYPEABLE.test(char)) ? index : -1))
+    .filter((index) => index >= 0);
   const revealedCount = Math.min(
-    Math.max(0, wordTexts.length - 1),
-    Math.max(0, Math.floor(wordTexts.length * revealRatio))
+    Math.max(0, typeableWords.length - 1),
+    Math.max(0, Math.floor(typeableWords.length * revealRatio))
   );
 
-  const order = wordTexts.map((_, index) => index);
+  const order = [...typeableWords];
   for (let i = order.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));
     [order[i], order[j]] = [order[j], order[i]];
@@ -191,4 +194,23 @@ export function evaluateTyping(
     complete,
     activeHiddenIndex,
   };
+}
+
+/**
+ * Hidden slots that are wrong in `next` and changed since `previous`. A paste
+ * or a caret edit can turn several slots wrong at once.
+ */
+export function addedWrongSlots(
+  previous: string,
+  next: string,
+  hiddenChars: readonly string[]
+): number[] {
+  const added: number[] = [];
+  for (let slot = 0; slot < next.length; slot++) {
+    const target = hiddenChars[slot];
+    if (!target || next[slot].toLowerCase() === target.toLowerCase()) continue;
+    if (slot < previous.length && previous[slot] === next[slot]) continue;
+    added.push(slot);
+  }
+  return added;
 }

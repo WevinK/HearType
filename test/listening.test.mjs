@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatTime, normalize, scoreSession } from '../lib/listening.ts';
+import { formatTime, scoreSession } from '../lib/listening.ts';
 
 function clip(overrides = {}) {
   return {
@@ -16,11 +16,6 @@ function clip(overrides = {}) {
     ...overrides,
   };
 }
-
-test('normalizes case, punctuation, and apostrophes', () => {
-  assert.equal(normalize('  I’m lost!  '), 'im lost');
-  assert.equal(normalize('According to my nava-computer, the-'), 'according to my nava computer the');
-});
 
 test('formats sentence timestamps', () => {
   assert.equal(formatTime(0), '0:00');

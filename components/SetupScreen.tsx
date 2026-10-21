@@ -22,8 +22,7 @@ type RemoteMedia = { url: string; title: string; source: TranscriptSource };
 
 const MAX_UPLOAD_MB = 500;
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
-const MEDIA_EXT =
-  /\.(mp4|m4v|webm|mov|mkv|avi|ogv|mp3|wav|m4a|aac|ogg|oga|opus|flac)$/i;
+const MEDIA_EXT = /\.(mp4|m4v|webm|mov|mp3|wav|m4a|aac|ogg|oga|opus)$/i;
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -32,11 +31,7 @@ function formatBytes(bytes: number): string {
 }
 
 function isMediaFile(file: File): boolean {
-  return (
-    file.type.startsWith('video/') ||
-    file.type.startsWith('audio/') ||
-    MEDIA_EXT.test(file.name)
-  );
+  return MEDIA_EXT.test(file.name);
 }
 
 export default function SetupScreen({ onStart }: Props) {
@@ -244,7 +239,7 @@ export default function SetupScreen({ onStart }: Props) {
   function start() {
     const prepared = sentences
       .map((sentence) => ({ ...sentence, text: sentence.text.trim() }))
-      .filter((sentence) => sentence.text);
+      .filter((sentence) => /[\p{L}\p{N}]/u.test(sentence.text));
     if (!prepared.length || prepared.length !== sentences.length) return;
 
     if (remote) {
@@ -257,7 +252,7 @@ export default function SetupScreen({ onStart }: Props) {
     }
   }
 
-  const hasEmpty = sentences.some((sentence) => !sentence.text.trim());
+  const hasInvalid = sentences.some((sentence) => !/[\p{L}\p{N}]/u.test(sentence.text));
   const isAudio = file?.type.startsWith('audio/') ?? false;
   const canRetry = Boolean(file) || (sourceMode === 'youtube' && youtubeUrl.trim());
 
@@ -266,7 +261,7 @@ export default function SetupScreen({ onStart }: Props) {
       <input
         ref={inputRef}
         type="file"
-        accept="video/*,audio/*"
+        accept=".mp4,.m4v,.webm,.mov,.mp3,.wav,.m4a,.aac,.ogg,.oga,.opus"
         hidden
         onChange={onInputChange}
       />
@@ -403,7 +398,8 @@ export default function SetupScreen({ onStart }: Props) {
                     </button>
                   </div>
                   <p className="hint">
-                    MP4, MOV, WebM, MP3 · up to {MAX_UPLOAD_MB} MB · clear speech works best.
+                    MP4, MOV, WebM, MP3, M4A, WAV · up to {MAX_UPLOAD_MB} MB · clear speech
+                    works best.
                   </p>
                 </>
               ) : (
@@ -510,9 +506,9 @@ export default function SetupScreen({ onStart }: Props) {
               ))}
             </ol>
 
-            {hasEmpty && (
+            {hasInvalid && (
               <p className="feedback bad" style={{ textAlign: 'left' }}>
-                Each sentence needs text before you can start. Fill it in or remove it.
+                Each sentence needs words before you can start. Fill it in or remove it.
               </p>
             )}
 
@@ -520,7 +516,7 @@ export default function SetupScreen({ onStart }: Props) {
               className="btn btn-primary btn-xl"
               type="button"
               onClick={start}
-              disabled={hasEmpty || sentences.length === 0}
+              disabled={hasInvalid || sentences.length === 0}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l10.2-6.86a1 1 0 0 0 0-1.7L9.53 4.3A1 1 0 0 0 8 5.14z" />

@@ -1,15 +1,5 @@
 import type { Clip } from './types';
 
-export function normalize(value: string): string {
-  return value
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/['‘’`]/g, '')
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
 export function formatTime(seconds: number): string {
   const total = Math.max(0, Math.floor(seconds));
   const hours = Math.floor(total / 3600);

@@ -14,6 +14,7 @@ type RawCaptionCue = {
 
 const SPEAKER_PREFIX = /^[-–—]\s+/;
 const ENDS_SENTENCE = /[.!?]["'”’)\]]*$/;
+const HAS_WORD = /[\p{L}\p{N}]/u;
 const MAX_MERGED_SECONDS = 10;
 const MAX_MERGED_CHARS = 160;
 const MAX_CAPTION_SECONDS = 10;
@@ -49,7 +50,7 @@ export function buildSentences(segments: unknown): Sentence[] {
     if (!original) continue;
 
     const text = cleanText(original);
-    if (!text) continue;
+    if (!text || !HAS_WORD.test(text)) continue;
 
     prepared.push({
       start: Math.max(0, start),
@@ -106,7 +107,7 @@ export function buildCaptionSentences(cues: unknown): Sentence[] {
     if (offset < 0 || duration <= 0) continue;
 
     const text = cleanText(typeof cue.text === 'string' ? cue.text : '');
-    if (!text) continue;
+    if (!text || !HAS_WORD.test(text)) continue;
     rows.push({ text, offset, duration });
   }
   if (!rows.length) return [];

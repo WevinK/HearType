@@ -7,7 +7,7 @@ const YOUTUBE_HOSTS = new Set([
 ]);
 
 const ID_PATH = /^\/(?:shorts|live|embed|v)\/([A-Za-z0-9_-]{6,20})(?:[/?#]|$)/;
-const VIDEO_ID = /^[A-Za-z0-9_-]{6,20}$/;
+export const VIDEO_ID = /^[A-Za-z0-9_-]{6,20}$/;
 
 /** Return a normalized YouTube video URL, or null for anything else. */
 export function normalizeYouTubeUrl(input: string): string | null {

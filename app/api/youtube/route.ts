@@ -22,31 +22,25 @@ export async function POST(request: Request) {
   try {
     const video = await downloadYouTube(body.url);
 
-    let text: string;
     let sentences: Sentence[];
     let source: TranscriptSource;
     try {
       sentences = await fetchYouTubeCaptions(video.id);
       if (!sentences.length) throw new Error('No caption sentences were found.');
-      text = sentences.map((sentence) => sentence.text).join(' ');
       source = 'captions';
     } catch (error) {
       console.warn(
         'YouTube captions unavailable; falling back to Vibe:',
         error instanceof Error ? error.message : error
       );
-      const transcription = await transcribePath(video.filePath);
-      text = transcription.text;
-      sentences = transcription.sentences;
+      sentences = (await transcribePath(video.filePath)).sentences;
       source = 'vibe';
     }
 
     return NextResponse.json({
       title: video.title,
-      duration: video.duration,
       mediaUrl: `/api/media/${video.id}`,
       source,
-      text,
       sentences,
     });
   } catch (error) {

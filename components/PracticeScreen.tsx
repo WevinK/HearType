@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
-import { buildTypingLayout, evaluateTyping, seededRandom } from '@/lib/typing';
+import { addedWrongSlots, buildTypingLayout, evaluateTyping, seededRandom } from '@/lib/typing';
 import type { Clip, MediaKind, Sentence } from '@/lib/types';
 
 type Props = {
@@ -221,30 +221,15 @@ export default function PracticeScreen({
     const clip = clipsRef.current[currentIndex];
     if (!clip) return;
 
+    const added = addedWrongSlots(previous, next, layout.hiddenChars);
     let nextMistakes = mistakesRef.current;
     let wrongAdded = 0;
 
-    if (next.length > previous.length && next.startsWith(previous)) {
-      const added: number[] = [];
-      for (let slot = previous.length; slot < next.length; slot++) {
-        if (next[slot].toLowerCase() !== layout.hiddenChars[slot].toLowerCase()) {
-          added.push(slot);
-        }
-      }
-      if (added.length) {
-        const known = new Set(nextMistakes);
-        for (const slot of added) known.add(slot);
-        nextMistakes = [...known];
-        wrongAdded = added.length;
-      }
-    } else {
+    if (added.length) {
       const known = new Set(nextMistakes);
-      for (let slot = 0; slot < next.length; slot++) {
-        if (next[slot].toLowerCase() !== layout.hiddenChars[slot].toLowerCase()) {
-          known.add(slot);
-        }
-      }
+      for (const slot of added) known.add(slot);
       nextMistakes = [...known];
+      wrongAdded = added.length;
     }
 
     const nextEvaluation = evaluateTyping(layout, next, nextMistakes);

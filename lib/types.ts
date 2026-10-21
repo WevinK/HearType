@@ -21,7 +21,6 @@ export type Clip = Sentence & {
 };
 
 export type TranscribeResponse = {
-  text: string;
   sentences: Sentence[];
 };
 
@@ -29,7 +28,6 @@ export type TranscriptSource = 'captions' | 'vibe';
 
 export type YouTubeResponse = TranscribeResponse & {
   title: string;
-  duration: number;
   mediaUrl: string;
   source: TranscriptSource;
 };

@@ -36,6 +36,8 @@ test('drops non-speech tags and invalid segments', () => {
     { start: 1, end: 2, text: '♪' },
     { start: 3, end: 2.9, text: 'Backwards.' },
     { start: 2, end: 3, text: '(inaudible)' },
+    { start: 3, end: 3.5, text: '…' },
+    { start: 3.5, end: 4, text: '—' },
     { start: 4, end: 5.5, text: 'Hello there.' },
   ]);
 

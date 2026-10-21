@@ -1,8 +1,8 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, stat, unlink } from 'node:fs/promises';
+import { mkdir, readdir, rename, stat, unlink } from 'node:fs/promises';
 import path from 'node:path';
-import { normalizeYouTubeUrl } from './youtube-url';
+import { normalizeYouTubeUrl, VIDEO_ID } from './youtube-url';
 
 const VIBE_DIR = path.join(process.cwd(), '.vibe');
 export const MEDIA_DIR = path.join(VIBE_DIR, 'media');
@@ -106,8 +106,11 @@ async function cleanupMedia(): Promise<void> {
 export type DownloadedYouTubeVideo = {
   id: string;
   title: string;
-  duration: number;
   filePath: string;
+};
+
+const downloads = globalThis as typeof globalThis & {
+  __hearTypeDownloads?: Map<string, Promise<DownloadedYouTubeVideo>>;
 };
 
 export async function downloadYouTube(input: string): Promise<DownloadedYouTubeVideo> {
@@ -144,7 +147,7 @@ export async function downloadYouTube(input: string): Promise<DownloadedYouTubeV
   }
 
   const id = typeof info.id === 'string' ? info.id : '';
-  if (!/^[A-Za-z0-9_-]{6,20}$/.test(id)) {
+  if (!VIDEO_ID.test(id)) {
     throw new YouTubeError('Could not identify this YouTube video.', 502);
   }
 
@@ -160,48 +163,68 @@ export async function downloadYouTube(input: string): Promise<DownloadedYouTubeV
 
   await cleanupMedia();
   const filePath = path.join(MEDIA_DIR, `${id}.mp4`);
-  if ((await fileSize(filePath)) > 0) {
-    return { id, title, duration, filePath };
+
+  const inFlight = downloads.__hearTypeDownloads ?? (downloads.__hearTypeDownloads = new Map());
+  const pending = inFlight.get(id);
+  if (pending) return pending;
+
+  const job = (async () => {
+    if ((await fileSize(filePath)) > 0) return { id, title, filePath };
+
+    const ytDlpFormat = [
+      'bv*[vcodec^=avc1][height<=720][ext=mp4]+ba[ext=m4a]',
+      'b[height<=720][ext=mp4]',
+      'b[height<=720]',
+      'b',
+    ].join('/');
+
+    // Download to a unique name; a partial file must never look like a cache hit.
+    const tempBase = path.join(
+      MEDIA_DIR,
+      `${id}.${process.pid.toString(36)}${Math.random().toString(36).slice(2, 8)}`
+    );
+
+    await runYtDlp(
+      [
+        '--no-playlist',
+        '--no-warnings',
+        '--no-progress',
+        '--newline',
+        '--ffmpeg-location',
+        ffmpegPath(),
+        '--max-filesize',
+        `${MAX_UPLOAD_MB}M`,
+        '-f',
+        ytDlpFormat,
+        '--merge-output-format',
+        'mp4',
+        '--remux-video',
+        'mp4',
+        '-o',
+        `${tempBase}.%(ext)s`,
+        url,
+      ],
+      15 * 60 * 1000
+    );
+
+    const tempPath = `${tempBase}.mp4`;
+    const size = await fileSize(tempPath);
+    if (size === 0) {
+      throw new YouTubeError('The YouTube download did not produce a playable MP4.', 502);
+    }
+    if (size > MAX_BYTES) {
+      await unlink(/* turbopackIgnore: true */ tempPath).catch(() => undefined);
+      throw new YouTubeError(`The downloaded video is larger than ${MAX_UPLOAD_MB} MB.`, 413);
+    }
+
+    await rename(/* turbopackIgnore: true */ tempPath, filePath);
+    return { id, title, filePath };
+  })();
+
+  inFlight.set(id, job);
+  try {
+    return await job;
+  } finally {
+    inFlight.delete(id);
   }
-
-  const ytDlpFormat = [
-    'bv*[vcodec^=avc1][height<=720][ext=mp4]+ba[ext=m4a]',
-    'b[height<=720][ext=mp4]',
-    'b[height<=720]',
-    'b',
-  ].join('/');
-
-  await runYtDlp(
-    [
-      '--no-playlist',
-      '--no-warnings',
-      '--no-progress',
-      '--newline',
-      '--ffmpeg-location',
-      ffmpegPath(),
-      '--max-filesize',
-      `${MAX_UPLOAD_MB}M`,
-      '-f',
-      ytDlpFormat,
-      '--merge-output-format',
-      'mp4',
-      '--remux-video',
-      'mp4',
-      '-o',
-      path.join(MEDIA_DIR, `${id}.%(ext)s`),
-      url,
-    ],
-    15 * 60 * 1000
-  );
-
-  const size = await fileSize(filePath);
-  if (size === 0) {
-    throw new YouTubeError('The YouTube download did not produce a playable MP4.', 502);
-  }
-  if (size > MAX_BYTES) {
-    await unlink(/* turbopackIgnore: true */ filePath).catch(() => undefined);
-    throw new YouTubeError(`The downloaded video is larger than ${MAX_UPLOAD_MB} MB.`, 413);
-  }
-
-  return { id, title, duration, filePath };
 }

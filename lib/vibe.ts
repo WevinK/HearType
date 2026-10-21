@@ -44,6 +44,11 @@ export async function ensureVibe(attempt = 0): Promise<Server> {
   const server = await cache.__hearTypeVibe;
   if (await isHealthy(server.baseUrl)) return server;
 
+  // A busy CPU can make /health slow; never kill a server that is still running.
+  if (server.child && server.child.exitCode === null && server.child.signalCode === null) {
+    return server;
+  }
+
   delete cache.__hearTypeVibe;
   if (server.child) server.child.kill();
   if (attempt >= 1) {
@@ -230,16 +235,13 @@ async function transcribeBlob(blob: Blob, filename: string): Promise<TranscribeR
     throw new VibeError(`Vibe could not transcribe this file: ${detail}`, response.status === 400 ? 400 : 502);
   }
 
-  const data = (await response.json()) as { text?: unknown; segments?: unknown };
+  const data = (await response.json()) as { segments?: unknown };
   const sentences = buildSentences(data.segments);
   if (!sentences.length) {
     throw new VibeError('No speech was found in this file. Try a clearer clip.', 422);
   }
 
-  return {
-    text: typeof data.text === 'string' ? data.text.trim() : '',
-    sentences,
-  };
+  return { sentences };
 }
 
 async function readError(response: Response): Promise<string> {

@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildTypingLayout, evaluateTyping, seededRandom } from '../lib/typing.ts';
+import {
+  addedWrongSlots,
+  buildTypingLayout,
+  evaluateTyping,
+  seededRandom,
+} from '../lib/typing.ts';
 
 const high = () => 0.99;
 const low = () => 0;
@@ -134,4 +139,21 @@ test('blanks whole numbers and keeps their punctuation automatic', () => {
   assert.equal(layout.hiddenChars.join(''), 'am1113');
   assert.equal(layout.words[2].chars[2].char, '.');
   assert.equal(layout.words[2].chars[2].hidden, false);
+});
+
+test('keeps a typeable word hidden when punctuation is its own word', () => {
+  const layout = buildTypingLayout('hello —', 0.5, high);
+
+  assert.equal(layout.words[0].revealed, false);
+  assert.equal(layout.hiddenChars.join(''), 'hello');
+});
+
+test('counts wrong slots added by a paste or edit', () => {
+  const hidden = ['t', 'h', 'e', 'r', 'e'];
+
+  assert.deepEqual(addedWrongSlots('th', 'thxre', hidden), [2]);
+  assert.deepEqual(addedWrongSlots('thxre', 'thxre', hidden), []);
+  assert.deepEqual(addedWrongSlots('th', 'tX', hidden), [1]);
+  assert.deepEqual(addedWrongSlots('thx', 'thy', hidden), [2]);
+  assert.deepEqual(addedWrongSlots('thx', 'th', hidden), []);
 });

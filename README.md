@@ -30,9 +30,9 @@ npm run setup:vibe
 npm run dev
 ```
 
-Open **http://localhost:3100**.
+Open **http://127.0.0.1:3100**.
 
-The setup command downloads `vibe-server v0.6.10`, `yt-dlp`, ffmpeg, and `ggml-base.en.bin` into `.vibe/` (ignored by git). The first transcription also loads the model, so it can take a little longer than later ones.
+The setup command downloads `vibe-server v0.6.10`, `yt-dlp`, ffmpeg, and `ggml-base.en.bin` into `.vibe/` (ignored by git). It verifies pinned SHA-256 checksums for the server and model; a custom `VIBE_SERVER_VERSION` and the latest `yt-dlp` are not pinned. The first transcription also loads the model, so it can take a little longer than later ones.
 
 ### Production
 
@@ -47,10 +47,10 @@ This app is designed to run locally because it starts a native Vibe process. It 
 
 | Command | What it does |
 | --- | --- |
-| `npm run dev` | Start Next.js on port 3100 |
+| `npm run dev` | Start Next.js on 127.0.0.1:3100 |
 | `npm run build` | Production build |
-| `npm run start` | Start the production server on port 3100 |
-| `npm test` | Run sentence, scoring, YouTube URL, caption, typing, and legacy tests |
+| `npm run start` | Start the production server on 127.0.0.1:3100 |
+| `npm test` | Run sentence, scoring, YouTube URL, caption, typing, range, and legacy tests |
 | `npm run typecheck` | Run TypeScript with no emit |
 | `npm run setup:vibe` | Download vibe-server, ffmpeg, and the model into `.vibe/` |
 
@@ -85,9 +85,10 @@ lib/youtube-captions.ts YouTube caption fetch and grouping boundary
 lib/youtube-url.ts   YouTube URL allowlist/normalisation
 lib/sentences.ts     Whisper segment → sentence grouping (10s / 160 chars)
 lib/typing.ts        Whole-word clue layout and per-key word states
-lib/listening.ts     Matching, scoring, and time formatting
+lib/listening.ts     Scoring and time formatting
+lib/media-range.ts   HTTP range parsing for local media playback
 scripts/setup-vibe.mjs
-test/                Sentence, scoring, YouTube URL, caption, typing, and legacy parser tests
+test/                Sentence, scoring, YouTube URL, caption, typing, range, and legacy parser tests
 legacy/              Previous zero-dependency single-file version (reference only)
 ```
 

@@ -59,6 +59,8 @@ test('drops non-speech caption cues', () => {
     { text: '[Music]', offset: 0, duration: 1 },
     { text: '♪', offset: 1, duration: 1 },
     { text: '(inaudible)', offset: 2, duration: 1 },
+    { text: '…', offset: 3, duration: 0.5 },
+    { text: '—', offset: 3.5, duration: 0.5 },
     { text: 'Hello there.', offset: 4, duration: 1.5 },
   ]);
 
