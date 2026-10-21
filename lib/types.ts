@@ -1,9 +1,16 @@
 export type MediaKind = 'video' | 'audio';
 
+export type SentenceWord = {
+  text: string;
+  start: number;
+  end: number;
+};
+
 export type Sentence = {
   start: number;
   end: number;
   text: string;
+  words?: SentenceWord[];
 };
 
 export type ClipResult = 'pending' | 'correct' | 'skipped';
