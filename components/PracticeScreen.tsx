@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ChangeEvent, KeyboardEvent } from 'react';
+import type { KeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { formatTime } from '@/lib/listening';
 import { clipPlaybackEnd } from '@/lib/playback';
 import { addedWrongSlots, buildTypingLayout, evaluateTyping, seededRandom } from '@/lib/typing';
@@ -17,6 +17,29 @@ type Props = {
 };
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5];
+
+function fieldValueOf(typed: string, indices: number[]): string {
+  let value = '';
+  for (const index of indices) {
+    const char = typed[index];
+    if (!char || char === ' ') break;
+    value += char;
+  }
+  return value;
+}
+
+function writeField(
+  typed: string,
+  indices: number[],
+  value: string,
+  hiddenCount: number
+): string {
+  const chars = typed.slice(0, hiddenCount).padEnd(hiddenCount, ' ').split('');
+  indices.forEach((index, position) => {
+    chars[index] = position < value.length ? value[position] : ' ';
+  });
+  return chars.join('');
+}
 
 function createClips(sentences: Sentence[]): Clip[] {
   return sentences.map((sentence, index) => ({
@@ -50,12 +73,14 @@ export default function PracticeScreen({
 
   const [typed, setTyped] = useState('');
   const typedRef = useRef('');
+  const [fieldIndex, setFieldIndex] = useState(0);
+  const fieldIndexRef = useRef(0);
   const [mistakes, setMistakes] = useState<number[]>([]);
   const mistakesRef = useRef<number[]>([]);
   const [readOnly, setReadOnly] = useState(false);
   const [feedback, setFeedback] = useState<Feedback>({ text: '', kind: '' });
   const [attemptHint, setAttemptHint] = useState('Type the missing letters');
-  const [shake, setShake] = useState(false);
+  const [shakeSlot, setShakeSlot] = useState<number | null>(null);
 
   const [counting, setCounting] = useState(true);
   const [countdown, setCountdown] = useState(3);
@@ -86,9 +111,23 @@ export default function PracticeScreen({
       ),
     [current?.text, current?.revealSeed]
   );
+  const fields = useMemo(
+    () =>
+      layout.words
+        .filter((word) => !word.revealed)
+        .map((word) => ({ indices: word.hiddenIndices })),
+    [layout]
+  );
+  const activeField = fields[fieldIndex] ?? null;
+  const caretOffset = activeField ? fieldValueOf(typed, activeField.indices).length : 0;
+  const caretSlot =
+    activeField && activeField.indices.length
+      ? activeField.indices[Math.min(caretOffset, activeField.indices.length - 1)]
+      : null;
+  const caretAfter = !!activeField && caretOffset === activeField.indices.length;
   const evaluation = useMemo(
-    () => evaluateTyping(layout, typed, mistakes),
-    [layout, typed, mistakes]
+    () => evaluateTyping(layout, typed, mistakes, readOnly ? null : caretSlot),
+    [layout, typed, mistakes, readOnly, caretSlot]
   );
   const wordTimings = useMemo(
     () => (current ? resolveWordTimings(current) : []),
@@ -142,10 +181,12 @@ export default function PracticeScreen({
 
       setTyped(currentClip.typed);
       typedRef.current = currentClip.typed;
+      fieldIndexRef.current = 0;
+      setFieldIndex(0);
       setMistakes(currentClip.mistakes);
       mistakesRef.current = currentClip.mistakes;
       setReadOnly(currentClip.result === 'correct');
-      setShake(false);
+      setShakeSlot(null);
       setShowTap(false);
       const wrongHint = currentClip.attempts
         ? `${currentClip.attempts} wrong ${currentClip.attempts === 1 ? 'key' : 'keys'}`
@@ -204,7 +245,7 @@ export default function PracticeScreen({
       )
     );
     setReadOnly(true);
-    setShake(false);
+    setShakeSlot(null);
     setAttemptHint(
       clip.attempts ? `${clip.attempts} wrong ${clip.attempts === 1 ? 'key' : 'keys'}` : ''
     );
@@ -235,32 +276,44 @@ export default function PracticeScreen({
     }
   }, []);
 
-  const pulseWrong = useCallback(() => {
+  const pulseWrong = useCallback((slot: number) => {
     buzz();
-    setShake(false);
-    window.requestAnimationFrame(() => setShake(true));
+    setShakeSlot(null);
+    window.requestAnimationFrame(() => setShakeSlot(slot));
     if (shakeRef.current !== null) window.clearTimeout(shakeRef.current);
-    shakeRef.current = window.setTimeout(() => setShake(false), 450);
+    shakeRef.current = window.setTimeout(() => setShakeSlot(null), 450);
   }, [buzz]);
 
-  function onTypingChange(event: ChangeEvent<HTMLInputElement>) {
+  function paddedTyped(value: string): string {
+    return value.slice(0, layout.hiddenCount).padEnd(layout.hiddenCount, ' ');
+  }
+
+  function focusField(index: number) {
+    if (!fields.length) return;
+    const nextIndex = Math.max(0, Math.min(fields.length - 1, index));
+    fieldIndexRef.current = nextIndex;
+    setFieldIndex(nextIndex);
+  }
+
+  function commitTyped(value: string, nextField: number, wrongSlots?: number[]) {
     if (readOnly || counting) return;
 
-    const previous = typedRef.current;
-    const next = event.target.value
-      .replace(/[^\p{L}\p{N}]/gu, '')
-      .slice(0, layout.hiddenCount);
+    const previous = paddedTyped(typedRef.current);
+    const next = paddedTyped(value);
+    const fieldAt = fields.length
+      ? Math.max(0, Math.min(fields.length - 1, nextField))
+      : 0;
 
-    if (next === previous) {
-      event.target.value = next;
-      return;
-    }
+    fieldIndexRef.current = fieldAt;
+    setFieldIndex(fieldAt);
+
+    if (next === previous) return;
 
     const currentIndex = indexRef.current;
     const clip = clipsRef.current[currentIndex];
     if (!clip) return;
 
-    const added = addedWrongSlots(previous, next, layout.hiddenChars);
+    const added = wrongSlots ?? addedWrongSlots(previous, next, layout.hiddenChars);
     let nextMistakes = mistakesRef.current;
     let wrongAdded = 0;
 
@@ -286,7 +339,7 @@ export default function PracticeScreen({
               typed: next,
               mistakes: nextMistakes,
               attempts,
-              answer: next ? nextEvaluation.answer : '',
+              answer: next.trim() ? nextEvaluation.answer : '',
               lastWrong: wrongAdded ? nextEvaluation.answer : item.lastWrong,
             }
           : item
@@ -296,7 +349,7 @@ export default function PracticeScreen({
     if (wrongAdded) {
       setFeedback({ text: 'Not quite — check the red key.', kind: 'bad' });
       setAttemptHint(`${attempts} wrong ${attempts === 1 ? 'key' : 'keys'}`);
-      pulseWrong();
+      pulseWrong(added[0]);
     } else {
       setFeedback({ text: '', kind: '' });
       setAttemptHint(
@@ -311,36 +364,176 @@ export default function PracticeScreen({
     if (nextEvaluation.correct) markCorrect();
   }
 
+  function typeText(text: string) {
+    if (readOnly || counting) return;
+
+    const field = fields[fieldIndexRef.current];
+    if (!field) return;
+
+    const letters = Array.from(text).filter((char) => /[\p{L}\p{N}]/u.test(char));
+    if (!letters.length) return;
+
+    const max = field.indices.length;
+    const before = fieldValueOf(typedRef.current, field.indices);
+    let value = before;
+    for (const letter of letters) {
+      if (value.length >= max) break;
+      value += letter;
+    }
+
+    const next = writeField(typedRef.current, field.indices, value, layout.hiddenCount);
+    let nextField = fieldIndexRef.current;
+    if (before.length < max && value.length >= max) {
+      for (let i = fieldIndexRef.current + 1; i < fields.length; i++) {
+        if (fieldValueOf(next, fields[i].indices).length < fields[i].indices.length) {
+          nextField = i;
+          break;
+        }
+      }
+    }
+
+    commitTyped(next, nextField);
+  }
+
+  function eraseBackward() {
+    if (readOnly || counting) return;
+
+    const currentIndex = fieldIndexRef.current;
+    const field = fields[currentIndex];
+    if (!field) return;
+
+    const value = fieldValueOf(typedRef.current, field.indices);
+    if (value.length) {
+      commitTyped(
+        writeField(typedRef.current, field.indices, value.slice(0, -1), layout.hiddenCount),
+        currentIndex,
+        []
+      );
+      return;
+    }
+
+    // On an empty word, erase the nearest earlier written word.
+    for (let i = currentIndex - 1; i >= 0; i--) {
+      const previous = fields[i];
+      const previousValue = fieldValueOf(typedRef.current, previous.indices);
+      if (previousValue.length) {
+        commitTyped(
+          writeField(
+            typedRef.current,
+            previous.indices,
+            previousValue.slice(0, -1),
+            layout.hiddenCount
+          ),
+          i,
+          []
+        );
+        return;
+      }
+    }
+
+    focusField(0);
+  }
+
+  function moveField(direction: -1 | 1) {
+    if (readOnly || counting) return;
+    focusField(fieldIndexRef.current + direction);
+  }
+
+  function handleTypingClick(event: ReactMouseEvent<HTMLDivElement>) {
+    if (readOnly || counting) return;
+    inputRef.current?.focus({ preventScroll: true });
+
+    const target = (event.target as HTMLElement).closest<HTMLElement>('.typing-char');
+    if (!target) return;
+
+    const chars = [...event.currentTarget.querySelectorAll<HTMLElement>('.typing-char')];
+    let slotChar: HTMLElement | null = target;
+
+    if (target.dataset.slot === undefined) {
+      const clickedIndex = chars.indexOf(target);
+      slotChar = null;
+      for (let i = clickedIndex + 1; i < chars.length; i++) {
+        if (chars[i].dataset.slot !== undefined) {
+          slotChar = chars[i];
+          break;
+        }
+      }
+      if (!slotChar) {
+        for (let i = clickedIndex; i >= 0; i--) {
+          if (chars[i].dataset.slot !== undefined) {
+            slotChar = chars[i];
+            break;
+          }
+        }
+      }
+      if (!slotChar) return;
+    }
+
+    const slot = Number(slotChar.dataset.slot);
+    const fieldAt = fields.findIndex((field) => field.indices.includes(slot));
+    if (fieldAt >= 0) focusField(fieldAt);
+  }
+
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key !== 'Enter') return;
-    event.preventDefault();
-    if (counting) return;
+    if (event.nativeEvent.isComposing) return;
 
-    const clip = clipsRef.current[indexRef.current];
-    if (!clip) return;
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      if (counting) return;
 
-    if (clip.result === 'correct') {
-      advance();
+      const clip = clipsRef.current[indexRef.current];
+      if (!clip) return;
+
+      if (clip.result === 'correct') {
+        advance();
+        return;
+      }
+
+      if (!typedRef.current.trim()) {
+        setFeedback({ text: 'Type the missing letters first.', kind: 'bad' });
+        return;
+      }
+
+      const result = evaluateTyping(layout, typedRef.current, mistakesRef.current);
+      if (result.correct) {
+        markCorrect();
+        return;
+      }
+
+      setFeedback({
+        text: result.complete
+          ? 'Not quite — fix the red letters or press Next.'
+          : 'Finish the missing letters.',
+        kind: 'bad',
+      });
       return;
     }
 
-    if (!typedRef.current) {
-      setFeedback({ text: 'Type the missing letters first.', kind: 'bad' });
+    if (readOnly || counting || event.ctrlKey || event.metaKey || event.altKey) return;
+
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      moveField(-1);
       return;
     }
-
-    const result = evaluateTyping(layout, typedRef.current, mistakesRef.current);
-    if (result.correct) {
-      markCorrect();
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      moveField(1);
       return;
     }
-
-    setFeedback({
-      text: result.complete
-        ? 'Not quite — fix the red letters or press Next.'
-        : 'Finish the missing letters.',
-      kind: 'bad',
-    });
+    if (event.key === 'Backspace') {
+      event.preventDefault();
+      eraseBackward();
+      return;
+    }
+    if (event.key === 'Delete') {
+      event.preventDefault();
+      return;
+    }
+    if (event.key.length === 1) {
+      event.preventDefault();
+      typeText(event.key);
+    }
   }
 
   function clearInput() {
@@ -366,7 +559,9 @@ export default function PracticeScreen({
         ? `${clip.attempts} wrong ${clip.attempts === 1 ? 'key' : 'keys'}`
         : 'Type the missing letters'
     );
-    setShake(false);
+    setShakeSlot(null);
+    fieldIndexRef.current = 0;
+    setFieldIndex(0);
     inputRef.current?.focus({ preventScroll: true });
   }
 
@@ -392,7 +587,7 @@ export default function PracticeScreen({
                 ...item,
                 result: 'skipped' as const,
                 skippedOnce: true,
-                answer: value ? result.answer : '',
+                answer: value.trim() ? result.answer : '',
               }
             : item
         )
@@ -404,7 +599,7 @@ export default function PracticeScreen({
   function endSession() {
     const currentIndex = indexRef.current;
     const clip = clipsRef.current[currentIndex];
-    if (clip && clip.result === 'pending' && typedRef.current) {
+    if (clip && clip.result === 'pending' && typedRef.current.trim()) {
       const result = evaluateTyping(layout, typedRef.current, mistakesRef.current);
       if (result.correct) markCorrect();
     }
@@ -781,12 +976,12 @@ export default function PracticeScreen({
             className="clear-btn"
             type="button"
             onClick={clearInput}
-            disabled={counting || readOnly || !typed}
+            disabled={counting || readOnly || !typed.trim()}
           >
             Clear input
           </button>
         </div>
-        <div className={`typing-shell${shake ? ' shake' : ''}`}>
+        <div className="typing-shell" onClick={handleTypingClick}>
           <div className="typing-display" aria-hidden="true">
             {evaluation.words.map((word, wordIndex) => (
               <span
@@ -796,7 +991,29 @@ export default function PracticeScreen({
                 }`}
               >
                 {word.chars.map((char, charIndex) => (
-                  <span key={charIndex} className={`typing-char ${char.state}`}>
+                  <span
+                    key={charIndex}
+                    data-slot={char.hiddenIndex ?? undefined}
+                    className={`typing-char ${char.state}${
+                      !readOnly &&
+                      !caretAfter &&
+                      char.hiddenIndex !== null &&
+                      char.hiddenIndex === caretSlot
+                        ? ' caret'
+                        : ''
+                    }${
+                      !readOnly &&
+                      caretAfter &&
+                      char.hiddenIndex !== null &&
+                      char.hiddenIndex === caretSlot
+                        ? ' caret-after'
+                        : ''
+                    }${
+                      char.hiddenIndex !== null && char.hiddenIndex === shakeSlot
+                        ? ' shake'
+                        : ''
+                    }`}
+                  >
                     {char.state === 'blank' ? ' ' : (char.typedChar ?? char.char)}
                   </span>
                 ))}
@@ -808,8 +1025,28 @@ export default function PracticeScreen({
             ref={inputRef}
             className="typing-capture"
             value={typed}
-            onChange={onTypingChange}
+            onChange={() => undefined}
             onKeyDown={onKeyDown}
+            onBeforeInput={(event) => {
+              const native = event.nativeEvent as InputEvent;
+              if (native.inputType === 'insertText') {
+                event.preventDefault();
+                if (native.data) typeText(native.data);
+                return;
+              }
+              if (native.inputType === 'deleteContentBackward') {
+                event.preventDefault();
+                eraseBackward();
+                return;
+              }
+              if (native.inputType.startsWith('insert') || native.inputType.startsWith('delete')) {
+                event.preventDefault();
+              }
+            }}
+            onPaste={(event) => {
+              event.preventDefault();
+              typeText(event.clipboardData.getData('text'));
+            }}
             readOnly={readOnly}
             disabled={counting}
             autoComplete="off"

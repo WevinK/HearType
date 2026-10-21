@@ -157,3 +157,27 @@ test('counts wrong slots added by a paste or edit', () => {
   assert.deepEqual(addedWrongSlots('thx', 'thy', hidden), [2]);
   assert.deepEqual(addedWrongSlots('thx', 'th', hidden), []);
 });
+
+test('counts a blank slot as not typed', () => {
+  const hidden = ['t', 'h', 'e', 'r', 'e'];
+
+  assert.deepEqual(addedWrongSlots('th', 'th  e', hidden), []);
+});
+
+test('uses the caret position for the active word', () => {
+  const layout = buildTypingLayout('Hello there.', 0.5, high);
+  const result = evaluateTyping(layout, 'there', [], 2);
+
+  assert.equal(result.words[1].active, true);
+});
+
+test('treats blank slots as unfilled', () => {
+  const layout = buildTypingLayout('Hello there.', 0.5, high);
+  const result = evaluateTyping(layout, 'th  e', []);
+
+  assert.equal(result.words[1].chars[2].state, 'blank');
+  assert.equal(result.words[1].chars[3].state, 'blank');
+  assert.equal(result.words[1].chars[4].state, 'typed');
+  assert.equal(result.complete, false);
+  assert.equal(result.correct, false);
+});

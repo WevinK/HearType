@@ -549,10 +549,10 @@
     position: relative;
     padding: 4px 2px 10px;
     border-bottom: 2px solid rgba(255, 255, 255, 0.13);
+    cursor: text;
     transition: border-color 0.2s;
   }
   .typing-shell:focus-within { border-color: var(--accent); }
-  .typing-shell.shake { animation: shake 0.4s ease; }
   .typing-display {
     display: flex; flex-wrap: wrap; align-items: flex-end;
     gap: 0.12em 0.55em;
@@ -588,14 +588,27 @@
   }
   .typing-char.typed { color: var(--word-color); }
   .typing-char.wrong { color: var(--bad); opacity: 1; }
+  .typing-char.caret,
+  .typing-char.caret-after { position: relative; }
+  .typing-char.caret::before,
+  .typing-char.caret-after::after {
+    content: ''; position: absolute; top: 0.1em; bottom: 0.1em;
+    width: 2px; border-radius: 1px; background: var(--accent);
+    animation: caret-blink 1s steps(1) infinite;
+  }
+  .typing-char.caret::before { left: -1px; }
+  .typing-char.caret-after::after { right: -1px; }
+  .typing-shell:not(:focus-within) .typing-char.caret::before,
+  .typing-shell:not(:focus-within) .typing-char.caret-after::after { display: none; }
+  .typing-char.shake { animation: shake 0.4s ease; }
+  @keyframes caret-blink { 50% { opacity: 0; } }
   .typing-capture {
     position: absolute; inset: 0; z-index: 2;
     width: 100%; height: 100%; margin: 0; padding: 0;
     opacity: 0; border: 0; border-radius: 0;
     background: transparent; color: transparent;
-    font-size: 16px; cursor: text;
+    font-size: 16px; pointer-events: none;
   }
-  .typing-capture:disabled { cursor: default; }
   .typing-capture:focus { outline: none; }
   @keyframes shake {
     10%, 90% { transform: translateX(-1px); }

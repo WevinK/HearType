@@ -108,14 +108,31 @@ export function buildTypingLayout(
   return { words, hiddenChars, hiddenCount: hiddenChars.length };
 }
 
-/** Evaluate typed letters against the hidden words and keep mistake history. */
+/**
+ * Evaluate typed letters against the hidden words and keep mistake history.
+ * A space marks an empty slot. `caretIndex` is the boundary before a slot and
+ * decides which word is active.
+ */
 export function evaluateTyping(
   layout: TypingLayout,
   typed: string,
-  mistakes: readonly number[] = []
+  mistakes: readonly number[] = [],
+  caretIndex?: number | null
 ): TypingEvaluation {
   const mistakeSet = new Set(mistakes);
-  const activeHiddenIndex = typed.length < layout.hiddenCount ? typed.length : null;
+  const isBlank = (index: number) => index >= typed.length || typed[index] === ' ';
+  const firstBlank = (() => {
+    for (let slot = 0; slot < layout.hiddenCount; slot++) {
+      if (isBlank(slot)) return slot;
+    }
+    return null;
+  })();
+  const activeHiddenIndex =
+    caretIndex === undefined
+      ? firstBlank
+      : caretIndex === null || layout.hiddenCount === 0
+        ? null
+        : Math.min(Math.max(0, caretIndex), layout.hiddenCount - 1);
   const activeWord =
     activeHiddenIndex === null
       ? -1
@@ -131,7 +148,7 @@ export function evaluateTyping(
         if (!char.hidden) {
           return { ...char, state: char.revealed ? 'shown' : 'auto' };
         }
-        if (char.hiddenIndex === null || char.hiddenIndex >= typed.length) {
+        if (char.hiddenIndex === null || isBlank(char.hiddenIndex)) {
           return { ...char, state: 'blank' };
         }
         const matches =
@@ -149,8 +166,7 @@ export function evaluateTyping(
     );
 
     const complete =
-      word.revealed ||
-      word.hiddenIndices.every((hiddenIndex) => hiddenIndex < typed.length);
+      word.revealed || word.hiddenIndices.every((hiddenIndex) => !isBlank(hiddenIndex));
 
     let state: TypingWordState = 'pending';
     if (word.revealed) {
@@ -178,14 +194,14 @@ export function evaluateTyping(
       word.chars
         .map((char) => {
           if (!char.hidden) return char.char;
-          if (char.hiddenIndex === null || char.hiddenIndex >= typed.length) return '_';
+          if (char.hiddenIndex === null || isBlank(char.hiddenIndex)) return '_';
           return typed[char.hiddenIndex];
         })
         .join('')
     )
     .join(' ');
 
-  const complete = typed.length >= layout.hiddenCount;
+  const complete = firstBlank === null;
 
   return {
     words,
@@ -208,8 +224,11 @@ export function addedWrongSlots(
   const added: number[] = [];
   for (let slot = 0; slot < next.length; slot++) {
     const target = hiddenChars[slot];
-    if (!target || next[slot].toLowerCase() === target.toLowerCase()) continue;
-    if (slot < previous.length && previous[slot] === next[slot]) continue;
+    const value = next[slot];
+    if (!target || !value || value === ' ' || value.toLowerCase() === target.toLowerCase()) {
+      continue;
+    }
+    if (slot < previous.length && previous[slot] === value) continue;
     added.push(slot);
   }
   return added;
