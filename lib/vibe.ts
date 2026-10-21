@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, openAsBlob } from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import { buildSentences } from './sentences';
@@ -189,10 +189,24 @@ async function ensureModel(baseUrl: string): Promise<void> {
 }
 
 export async function transcribeFile(file: File): Promise<TranscribeResponse> {
+  return transcribeBlob(file, file.name);
+}
+
+export async function transcribePath(filePath: string): Promise<TranscribeResponse> {
+  let blob: Blob;
+  try {
+    blob = await openAsBlob(/* turbopackIgnore: true */ filePath);
+  } catch {
+    throw new VibeError('Could not read the downloaded video.');
+  }
+  return transcribeBlob(blob, path.basename(filePath));
+}
+
+async function transcribeBlob(blob: Blob, filename: string): Promise<TranscribeResponse> {
   const { baseUrl } = await ensureVibe();
 
   const form = new FormData();
-  form.append('file', file, file.name);
+  form.append('file', blob, filename);
   form.append('response_format', 'verbose_json');
   form.append('language', LANGUAGE);
 

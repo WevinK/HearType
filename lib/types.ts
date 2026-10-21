@@ -21,3 +21,13 @@ export type TranscribeResponse = {
   text: string;
   sentences: Sentence[];
 };
+
+export type YouTubeResponse = TranscribeResponse & {
+  title: string;
+  duration: number;
+  mediaUrl: string;
+};
+
+export type PlayableSource =
+  | { kind: MediaKind; file: File }
+  | { kind: MediaKind; url: string };

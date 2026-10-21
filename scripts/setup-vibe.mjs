@@ -33,11 +33,23 @@ function assetName() {
   throw new Error(`Unsupported platform: ${process.platform} ${process.arch}`);
 }
 
+function ytDlpAssetName() {
+  if (process.platform === 'win32' && process.arch === 'x64') return 'yt-dlp.exe';
+  if (process.platform === 'win32' && process.arch === 'arm64') return 'yt-dlp_arm64.exe';
+  if (process.platform === 'darwin') return 'yt-dlp_macos';
+  if (process.platform === 'linux' && process.arch === 'x64') return 'yt-dlp_linux';
+  if (process.platform === 'linux' && process.arch === 'arm64') return 'yt-dlp_linux_aarch64';
+  throw new Error(`Unsupported platform for YouTube support: ${process.platform} ${process.arch}`);
+}
+
 const asset = assetName();
 const downloadUrl = `https://github.com/thewh1teagle/vibe/releases/download/${serverVersion}/${asset}`;
 const archivePath = path.join(vibeDir, asset);
 const serverPath = path.join(vibeDir, process.platform === 'win32' ? 'vibe-server.exe' : 'vibe-server');
 const ffmpegPath = path.join(vibeDir, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
+const ytDlpAsset = ytDlpAssetName();
+const ytDlpPath = path.join(vibeDir, process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
+const ytDlpUrl = `https://github.com/yt-dlp/yt-dlp/releases/latest/download/${ytDlpAsset}`;
 
 async function fileExists(file) {
   try {
@@ -97,6 +109,13 @@ async function main() {
     }
   }
 
+  if (!(await fileExists(ytDlpPath))) {
+    await download(ytDlpUrl, ytDlpPath, ytDlpAsset);
+    if (process.platform !== 'win32') await chmod(ytDlpPath, 0o755);
+  } else {
+    console.log('yt-dlp already installed.');
+  }
+
   const modelExists = (await fileExists(modelPath)) && (await stat(modelPath)).size > 100_000_000;
   if (!modelExists) {
     await mkdir(modelDir, { recursive: true });
@@ -108,7 +127,8 @@ async function main() {
   console.log('\nVibe is ready.');
   console.log(`  server: ${serverPath}`);
   console.log(`  model:  ${modelPath}`);
-  console.log('Run npm run dev and upload a video.');
+  console.log(`  yt-dlp: ${ytDlpPath}`);
+  console.log('Run npm run dev and upload a video or paste a YouTube link.');
 }
 
 main().catch((error) => {

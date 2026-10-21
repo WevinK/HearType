@@ -17,6 +17,9 @@ next-env.d.ts
 # local browser test artifacts
 /.playwright-mcp/
 
+# local media experiments/downloads
+/video/
+
 # misc
 .DS_Store
 Thumbs.db
