@@ -18,15 +18,12 @@ test('groups millisecond caption cues into sentence clips', () => {
   assert.equal(result.length, 2);
   assert.equal(
     result[0].text,
-    'hello welcome to the english easy practice course'
+    'hello welcome to the english easy practice course now you will listen to some daily conversations.'
   );
   assert.ok(Math.abs(result[0].start - 7.359) < 1e-9);
-  assert.equal(result[0].end, 13.679);
-  assert.equal(
-    result[1].text,
-    'now you will listen to some daily conversations. this is a new sentence'
-  );
-  assert.equal(result[1].start, 13.679);
+  assert.equal(result[0].end, 18);
+  assert.equal(result[1].text, 'this is a new sentence');
+  assert.equal(result[1].start, 18);
   assert.equal(result[1].end, 20);
 });
 
@@ -66,19 +63,29 @@ test('drops non-speech caption cues', () => {
   assert.deepEqual(result, [{ start: 4, end: 5.5, text: 'Hello there.' }]);
 });
 
-test('does not overlap clips when a long caption group splits', () => {
+test('does not split a caption at a continuation ellipsis', () => {
+  const result = sentencesModule.buildCaptionSentences([
+    { text: 'this is the', offset: 0, duration: 1 },
+    { text: 'whole sentence...', offset: 1, duration: 1 },
+    { text: 'and it continues here', offset: 2, duration: 1 },
+  ]);
+
+  assert.deepEqual(result, [
+    { start: 0, end: 3, text: 'this is the whole sentence and it continues here' },
+  ]);
+});
+
+test('keeps overlapping caption cues in one full clip', () => {
   const result = sentencesModule.buildCaptionSentences([
     { text: 'a', offset: 0, duration: 10000 },
     { text: 'b', offset: 6000, duration: 10000 },
     { text: 'c', offset: 12000, duration: 2000 },
   ]);
 
-  assert.equal(result.length, 2);
-  assert.equal(result[0].end, 6);
-  assert.equal(result[1].start, 6);
+  assert.deepEqual(result, [{ start: 0, end: 16, text: 'a b c' }]);
 });
 
-test('keeps caption clips within the time cap', () => {
+test('keeps a long unpunctuated caption group in one clip', () => {
   const cues = Array.from({ length: 6 }, (_, index) => ({
     text: 'word '.repeat(10).trim(),
     offset: index * 5000,
@@ -87,8 +94,9 @@ test('keeps caption clips within the time cap', () => {
 
   const result = sentencesModule.buildCaptionSentences(cues);
 
-  assert.equal(result.length, 3);
-  assert.ok(result.every((sentence) => sentence.end - sentence.start <= 10 + 1e-9));
+  assert.equal(result.length, 1);
+  assert.equal(result[0].start, 0);
+  assert.equal(result[0].end, 30);
 });
 
 test('fetches caption cues through the YouTubeTranscript package', async () => {

@@ -16,6 +16,7 @@ type RawCaptionCue = {
 const SPEAKER_PREFIX = /^[-–—]\s+/;
 const SPEAKER_ONLY = /^[-–—]$/;
 const ENDS_SENTENCE = /[.!?]["'”’)\]]*$/;
+const CONTINUATION_ELLIPSIS = /(?:\.{2,}|…)\s*$/;
 const HAS_WORD = /[\p{L}\p{N}]/u;
 const MAX_MERGED_SECONDS = 10;
 const MAX_MERGED_CHARS = 160;
@@ -27,6 +28,11 @@ const CAPTION_GAP_SECONDS = 1.2;
 const SHORT_CLIP_SECONDS = 2.5;
 
 type WorkingSentence = Sentence & { words: SentenceWord[] };
+
+/** An ellipsis at a cue boundary usually means the caption continues. */
+function endsSentence(text: string): boolean {
+  return ENDS_SENTENCE.test(text) && !CONTINUATION_ELLIPSIS.test(text);
+}
 
 function isShortClip(sentence: Sentence): boolean {
   return sentence.end - sentence.start < SHORT_CLIP_SECONDS;
@@ -89,8 +95,8 @@ function cleanText(text: string): string {
 
 /**
  * Whisper word segments become sentence clips. Words join until terminal
- * punctuation, a speaker dash, a pause over 0.8 s, or the 10 s / 160-character
- * caps. Each sentence keeps the word timings for playback highlighting.
+ * punctuation, a speaker dash, or a pause over 0.8 s. A long sentence stays
+ * whole; the 10 s / 160-character caps only limit merging short clips.
  */
 export function buildSentences(segments: unknown): Sentence[] {
   if (!Array.isArray(segments)) return [];
@@ -181,10 +187,8 @@ export function buildSentences(segments: unknown): Sentence[] {
       }
 
       const finish =
-        ENDS_SENTENCE.test(current.text) ||
-        word.start - current.end > MAX_WORD_GAP_SECONDS ||
-        word.end - current.start > MAX_MERGED_SECONDS ||
-        current.text.length + word.text.length + 1 > MAX_MERGED_CHARS;
+        endsSentence(current.text) ||
+        word.start - current.end > MAX_WORD_GAP_SECONDS;
 
       if (finish) {
         close();
@@ -206,8 +210,9 @@ export function buildSentences(segments: unknown): Sentence[] {
 
 /**
  * YouTube caption cues are short fragments, often without punctuation. Group
- * them by pauses and length. The package returns milliseconds for srv3 tracks
- * and seconds for classic tracks, so infer the unit from the cue durations.
+ * them by pauses and sentence punctuation; a long unpunctuated group stays
+ * whole. The package returns milliseconds for srv3 tracks and seconds for
+ * classic tracks, so infer the unit from the cue durations.
  */
 export function buildCaptionSentences(cues: unknown): Sentence[] {
   if (!Array.isArray(cues)) return [];
@@ -249,13 +254,12 @@ export function buildCaptionSentences(cues: unknown): Sentence[] {
     }
 
     const canMerge =
-      !ENDS_SENTENCE.test(current.text) &&
-      cue.start - current.end <= CAPTION_GAP_SECONDS &&
-      cue.end - current.start <= MAX_CAPTION_SECONDS &&
-      current.text.length + cue.text.length + 1 <= MAX_CAPTION_CHARS;
+      !endsSentence(current.text) &&
+      cue.start - current.end <= CAPTION_GAP_SECONDS;
 
     if (canMerge) {
-      current.text += ' ' + cue.text;
+      const head = current.text.replace(CONTINUATION_ELLIPSIS, '').trimEnd();
+      current.text = head ? `${head} ${cue.text}` : cue.text;
       current.end = Math.max(current.end, cue.end);
     } else {
       // Caption display windows overlap; end the old clip where the new one starts.

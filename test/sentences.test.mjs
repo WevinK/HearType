@@ -154,23 +154,36 @@ test('splits after a pause over 0.8 seconds', () => {
   assert.equal(sentences.length, 2);
 });
 
-test('splits at the ten-second cap', () => {
+test('keeps a long sentence in one clip', () => {
   const sentences = buildSentences([
     { start: 0, end: 5, text: ' This' },
     { start: 5, end: 10.5, text: ' continues' },
   ]);
 
-  assert.equal(sentences.length, 2);
+  assert.equal(sentences.length, 1);
+  assert.equal(sentences[0].text, 'This continues');
+  assert.equal(sentences[0].end, 10.5);
 });
 
-test('splits at the 160-character cap', () => {
+test('keeps a long unpunctuated sentence in one clip', () => {
   const long = 'a'.repeat(100);
   const sentences = buildSentences([
     { start: 0, end: 1, text: ` ${long}` },
     { start: 1, end: 2, text: ` ${long}` },
   ]);
 
-  assert.equal(sentences.length, 2);
+  assert.equal(sentences.length, 1);
+  assert.equal(sentences[0].text.length, 201);
+});
+
+test('keeps a sentence that ends with an ellipsis together', () => {
+  const sentences = buildSentences([
+    { start: 0, end: 1, text: ' Wait...' },
+    { start: 1, end: 2, text: ' what?' },
+  ]);
+
+  assert.equal(sentences.length, 1);
+  assert.equal(sentences[0].text, 'Wait... what?');
 });
 
 test('keeps zero-duration words', () => {
