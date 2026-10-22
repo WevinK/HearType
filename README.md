@@ -6,8 +6,7 @@ Upload a clip or paste a public YouTube link. [Vibe](https://thewh1teagle.github
 
 Everything runs on your machine. No audio or video is sent to a cloud service.
 
-<img width="1890" height="1198" alt="image" src="https://github.com/user-attachments/assets/ccde49dc-b8b5-498f-b35f-a92859cc796d" />
-
+<img width="947" height="599" alt="image" src="https://github.com/user-attachments/assets/0be9eefd-cde7-47c6-b7dc-536ba67ae91e" />
 
 ## How it works
 
