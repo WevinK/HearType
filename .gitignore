@@ -19,6 +19,7 @@ next-env.d.ts
 
 # local media experiments/downloads
 /video/
+/legacy/Videos/
 
 # misc
 .DS_Store

@@ -97,7 +97,7 @@ test/                Sentence, scoring, YouTube URL, caption, typing, range, pla
 legacy/              Previous zero-dependency single-file version (reference only)
 ```
 
-The legacy app is kept for reference and has its own sample pack in `legacy/Videos/`. The Next.js app does not use it.
+The legacy app is kept for reference; its sample media is not included. The Next.js app does not use it.
 
 ## Notes
 
