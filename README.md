@@ -6,6 +6,9 @@ Upload a clip or paste a public YouTube link. [Vibe](https://thewh1teagle.github
 
 Everything runs on your machine. No audio or video is sent to a cloud service.
 
+<img width="1890" height="1198" alt="image" src="https://github.com/user-attachments/assets/ccde49dc-b8b5-498f-b35f-a92859cc796d" />
+
+
 ## How it works
 
 - **Upload or link** — choose a video/audio file (up to 500 MB), or paste a public YouTube link. YouTube videos are fetched with `yt-dlp` (the same downloader the Vibe desktop app uses) and cached in `.vibe/media/` for playback.
